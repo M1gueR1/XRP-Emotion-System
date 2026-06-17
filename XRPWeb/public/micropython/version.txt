@@ -1,0 +1,1 @@
+Current version of firmware.uf2 is micropython_xrp_controller_beta.uf2 Beta 6

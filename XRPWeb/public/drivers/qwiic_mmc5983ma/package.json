@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_mmc5983ma.py",
+      "drivers/qwiic_mmc5983ma/qwiic_mmc5983ma.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.0"
+}

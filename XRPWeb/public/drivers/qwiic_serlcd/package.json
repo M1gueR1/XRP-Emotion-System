@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_serlcd.py",
+      "drivers/qwiic_serlcd/qwiic_serlcd.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.0"
+}

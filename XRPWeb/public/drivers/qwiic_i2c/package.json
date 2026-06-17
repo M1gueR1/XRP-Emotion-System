@@ -1,0 +1,17 @@
+{
+    "urls": [
+        [
+            "qwiic_i2c/__init__.py",
+            "drivers/qwiic_i2c/__init__.py"
+        ],
+        [
+            "qwiic_i2c/i2c_driver.py",
+            "drivers/qwiic_i2c/i2c_driver.py"
+        ],
+        [
+            "qwiic_i2c/micropython_i2c.py",
+            "drivers/qwiic_i2c/micropython_i2c.py"
+        ]
+    ],
+    "version": "2.0.0"
+}

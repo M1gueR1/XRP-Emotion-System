@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_mcp4725.py",
+      "drivers/qwiic_mcp4725/qwiic_mcp4725.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.0"
+}

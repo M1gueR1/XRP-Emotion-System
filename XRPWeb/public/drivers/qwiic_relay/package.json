@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_relay.py",
+      "drivers/qwiic_relay/qwiic_relay.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "0.1.0"
+}

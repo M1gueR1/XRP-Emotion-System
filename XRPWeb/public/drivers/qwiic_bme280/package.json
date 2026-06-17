@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_bme280.py",
+      "drivers/qwiic_bme280/qwiic_bme280.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.0"
+}

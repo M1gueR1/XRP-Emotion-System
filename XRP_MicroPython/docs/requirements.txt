@@ -1,0 +1,5 @@
+# SPDX-FileCopyrightText: 2023 Kevin Siegall, written for OpenSTEM @ WPI
+#
+# SPDX-License-Identifier: MIT
+
+sphinx>=4.0.0

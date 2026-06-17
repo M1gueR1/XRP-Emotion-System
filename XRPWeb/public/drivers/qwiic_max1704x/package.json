@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_max1704x.py",
+      "drivers/qwiic_max1704x/qwiic_max1704x.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.0"
+}

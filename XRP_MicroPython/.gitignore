@@ -1,0 +1,9 @@
+.vscode/
+.git/
+docs/_build/
+.micropico
+.picowgo
+secrets.json
+venv
+.temp_xrplib
+XRPLib/__pycache__

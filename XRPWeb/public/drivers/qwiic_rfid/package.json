@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_rfid.py",
+      "drivers/qwiic_rfid/qwiic_rfid.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.1.1"
+}

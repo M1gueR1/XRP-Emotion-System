@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_ism330dhcx.py",
+      "drivers/qwiic_ism330dhcx/qwiic_ism330dhcx.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.0"
+}

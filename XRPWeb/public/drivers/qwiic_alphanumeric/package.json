@@ -1,0 +1,22 @@
+{
+  "urls": [
+    [
+      "qwiic_alphanumeric.py",
+      "drivers/qwiic_alphanumeric/qwiic_alphanumeric.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "blocks": [
+    {
+      "friendly_name": "sf_alphanumeric",
+      "blocks_url": "drivers/qwiic_alphanumeric/blocks.json",
+      "script_url": "drivers/qwiic_alphanumeric/blocks.js"
+    }
+  ],
+  "version": "2.0.0"
+}

@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_ads1015.py",
+      "drivers/qwiic_ads1015/qwiic_ads1015.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.0"
+}

@@ -1,0 +1,8 @@
+{
+    "urls": [
+        ["plugins/custom_motors/blocks.json", "/plugins/custom_motors/blocks.json"],
+        ["plugins/custom_motors/blocks.js", "/plugins/custom_motors/blocks.js"]
+    ],
+    "friendly_name": "Custom Motors",
+    "version": "1.0.0"
+}

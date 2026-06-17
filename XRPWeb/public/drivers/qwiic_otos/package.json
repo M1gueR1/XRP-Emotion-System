@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_otos.py",
+      "drivers/qwiic_otos/qwiic_otos.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.0"
+}

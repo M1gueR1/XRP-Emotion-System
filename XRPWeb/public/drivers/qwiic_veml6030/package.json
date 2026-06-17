@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_veml6030.py",
+      "drivers/qwiic_veml6030/qwiic_veml6030.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.0"
+}

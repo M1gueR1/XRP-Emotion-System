@@ -1,0 +1,14 @@
+{
+  "plugins": [
+    {
+      "friendly_name": "Advanced Sensors",
+      "blocks_url": "/plugins/advanced_sensors/blocks.json",
+      "script_url": "/plugins/advanced_sensors/blocks.js"
+    },
+    {
+      "friendly_name": "Custom Motors",
+      "blocks_url": "/plugins/custom_motors/blocks.json",
+      "script_url": "/plugins/custom_motors/blocks.js"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+    "$schema": "https://json-schema.org/draft-07/schema#",
+    "description": "JSON schema for custom blockly blocks.",
+    "$comment": "Custom Blockly blocks schema",
+    "type": "object",
+    "properties": {
+        "customblocks": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "friendly_name": {
+                        "type": "string"
+                    },
+                    "blocks_url": {
+                        "type": "string"
+                    },
+                    "script_url": {
+                        "type": "string"
+                    }
+                },
+                "required": ["friendly_name", "blocks_url", "script_url"]
+            }
+        }
+    },
+    "required": ["customblocks"]
+}

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link vite-ignore id="flexlayout-stylesheet" rel="stylesheet"
+        href="./node_modules/flexlayout-react/style/light.css" />
+    <link vite-ignore id="gridstack-stylesheet" rel="stylesheet" href="./node_modules/gridstack/dist/gridstack.css" />
+    <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0" /> -->
+    <title>XRP Web App</title>
+    
+    <!-- Import map for external plugin Blockly imports -->
+    <script type="importmap">
+    {
+        "imports": {
+            "blockly/core": "./assets/blockly-core.js",
+            "blockly/python": "./assets/blockly-python.js"
+        }
+    }
+    </script>
+    <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups">
+</head>
+
+<body class="debug-screens">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>

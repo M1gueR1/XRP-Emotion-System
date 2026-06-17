@@ -1,0 +1,35 @@
+{
+  "urls": [
+    [
+      "qwiic_vl53l5cx/qwiic_vl53l5cx.py",
+      "drivers/qwiic_vl53l5cx/qwiic_vl53l5cx.py"
+    ],
+    [
+      "qwiic_vl53l5cx/__init__.py",
+      "drivers/qwiic_vl53l5cx/__init__.py"
+    ],
+    [
+      "qwiic_vl53l5cx/vl53l5cx_bin/firmware.bin",
+      "drivers/qwiic_vl53l5cx/vl53l5cx_bin/firmware.bin"
+    ],
+    [
+      "qwiic_vl53l5cx/vl53l5cx_bin/default_configuration.bin",
+      "drivers/qwiic_vl53l5cx/vl53l5cx_bin/default_configuration.bin"
+    ],
+    [
+      "qwiic_vl53l5cx/vl53l5cx_bin/default_xtalk.bin",
+      "drivers/qwiic_vl53l5cx/vl53l5cx_bin/default_xtalk.bin"
+    ],
+    [
+      "qwiic_vl53l5cx/vl53l5cx_bin/get_nvm_cmd.bin",
+      "drivers/qwiic_vl53l5cx/vl53l5cx_bin/get_nvm_cmd.bin"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.0"
+}

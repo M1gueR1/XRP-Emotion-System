@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_soil_moisture_sensor.py",
+      "drivers/qwiic_soil_moisture_sensor/qwiic_soil_moisture_sensor.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "0.1.0"
+}

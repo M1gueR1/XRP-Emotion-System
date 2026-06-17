@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_scd4x.py",
+      "drivers/qwiic_scd4x/qwiic_scd4x.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.0"
+}

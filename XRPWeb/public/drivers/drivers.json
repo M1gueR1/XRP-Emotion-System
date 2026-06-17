@@ -1,0 +1,388 @@
+{
+    "drivers": [
+        {
+            "friendlyName": "9DoF IMU Breakout",
+            "name": "qwiic_icm20948.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.1",
+            "docUrl": "https://tinyurl.com/m2y5uuhj",
+            "url": "drivers/qwiic_9dof/package.json"
+        },
+        {
+            "friendlyName": "Qwiic I2C",
+            "name": "qwiic_i2c",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://qwiic-i2c-py.readthedocs.io/en/latest/index.html",
+            "url": "drivers/qwiic_i2c/package.json"
+        },
+        {
+            "friendlyName": "BME280 Atospheric Sensor Breakout",
+            "name": "qwiic_bme280.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/4rwptb49",
+            "url": "drivers/qwiic_bme280/package.json"
+        },
+        {
+            "friendlyName": "Qwiic SerLCD",
+            "name": "qwiic_serlcd.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/2xkbmd8r",
+            "url": "drivers/qwiic_serlcd/package.json"
+        },
+        {
+            "friendlyName": "Distance Sensor Breakout (VL53L1X)",
+            "name": "qwiic_vl53l1x.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/3xmv93wt",
+            "url": "drivers/qwiic_vl53l1x/package.json"
+        },
+        {
+            "friendlyName": "Qwiic Motor Driver",
+            "name": "qwiic_scmd.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/4w2r8a8b",
+            "url": "drivers/qwiic_scmd/package.json"
+        },
+        {
+            "friendlyName": "Photodetector Breakout (MAX30101)",
+            "name": "qwiic_max3010x.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/2aub5npf",
+            "url": "drivers/qwiic_max3010x/package.json"
+        },
+        {
+            "friendlyName": "Mux Breakout (TCA9548A)",
+            "name": "qwiic_tca9548a.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/374fsems",
+            "url": "drivers/qwiic_tca9548a/package.json"
+        },
+        {
+            "friendlyName": "Qwiic Alphanumeric Displays",
+            "name": "qwiic_alphanumeric.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/4shp84hj",
+            "url": "drivers/qwiic_alphanumeric/package.json"
+        },
+        {
+            "friendlyName": "Qwiic Relay",
+            "name": "qwiic_relay.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/27eyfb3r",
+            "url": "drivers/qwiic_relay/package.json"
+        },
+        {
+            "friendlyName": "Qwiic GPS Breakout (XA110)",
+            "name": "qwiic_titan_gps.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.1",
+            "docUrl": "https://tinyurl.com/4p5yyzsf",
+            "url": "drivers/qwiic_titan_gps/package.json"
+        },
+        {
+            "friendlyName": "Servo HAT for Raspberry Pi",
+            "name": "piservohat.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/m64xfaw6",
+            "url": "drivers/piservohat/package.json"
+        },
+        {
+            "friendlyName": "Optical Tracking Odometry Sensor (PAA5160E1)",
+            "name": "qwiic_otos.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/2rfbfcz5",
+            "url": "drivers/qwiic_otos/package.json"
+        },
+        {
+            "friendlyName": "Qwiic OLED",
+            "name": "qwiic_oled_base.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.1",
+            "docUrl": "https://tinyurl.com/4shp84hj",
+            "url": "drivers/qwiic_oled_base/package.json"
+        },
+        {
+            "friendlyName": "Qwwic Soil Moisture Sensor",
+            "name": "qwiic_soil_moisture_sensor.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "0.1.0",
+            "docUrl": "https://tinyurl.com/4t26wc93",
+            "url": "drivers/qwiic_soil_moisture_sensor/package.json"
+        },
+        {
+            "friendlyName": "RFID Qwiic Reader",
+            "name": "qwiic_rfid.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.1.1",
+            "docUrl": "https://learn.sparkfun.com/tutorials/rfid-basics",
+            "url": "drivers/qwiic_rfid/package.json"
+        },
+        {
+            "friendlyName": "Qwiic GPIO Expander",
+            "name": "qwiic_gpio.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/433ayrpd",
+            "url": "drivers/qwiic_gpio/package.json"
+        },
+        {
+            "friendlyName": "Qwiic Keypad 12 Button",
+            "name": "qwiic_keypad.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://www.sparkfun.com/keypad-12-button.html",
+            "url": "drivers/qwiic_keypad/package.json"
+        },
+        {
+            "friendlyName": "Micro Magnetometer (MMC5983MA)",
+            "name": "wiic_mmc5983ma.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/3e6v653k",
+            "url": "drivers/qwiic_mmc5983ma/package.json"
+        },
+        {
+            "friendlyName": "Qwiic VEML6030 Ambient Light Sensor",
+            "name": "qwiic_veml6030.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/mt6uzrzz",
+            "url": "drivers/qwiic_veml6030/package.json"
+        },
+        {
+            "friendlyName": "Qwiic Scale (NAU7802)",
+            "name": "qwiic_nau7802.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/mr44e5mx",
+            "url": "drivers/qwiic_nau7802/package.json"
+        },
+        {
+            "friendlyName": "Qwiic TMP102 Temperature Sensor",
+            "name": "qwiic_tmp102.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/ycyt7vuf",
+            "url": "drivers/qwiic_tmp102/package.json"
+        },
+        {
+            "friendlyName": "Qwiic Button",
+            "name": "qwiic_button.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.3",
+            "docUrl": "https://tinyurl.com/2s38kw5n",
+            "url": "drivers/qwiic_button/package.json"
+        },
+        {
+            "friendlyName": "Qwiic Indoor Air Quality Sensor (ENS160)",
+            "name": "qwiic_ens160.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/56ubp7d7",
+            "url": "drivers/qwiic_ens160/package.json"
+        },
+        {
+            "friendlyName": "Qwiic VL53L5CX Python Library",
+            "name": "qwiic_vl53l5cx",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/56ba698t",
+            "url": "drivers/qwiic_vl53l5cx/package.json"
+        },
+        {
+            "friendlyName": "Qwiic Air Velocity Sensor Breakout (FS3000-1005)",
+            "name": "qwiic_fs3000.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/y35mtncu",
+            "url": "drivers/qwiic_fs3000/package.json"
+        },
+        {
+            "friendlyName": "Qwiic SGP40 Air Quality Sensor",
+            "name": "qwiic_sgp40",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/mtb2nck7",
+            "url": "drivers/qwiic_sgp40/package.json"
+        },
+        {
+            "friendlyName": "LED Stick (APA102C)",
+            "name": "qwiic_led_stick.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/4yt7brb5",
+            "url": "drivers/qwiic_led_stick/package.json"
+        },
+        {
+            "friendlyName": "Capacitive Touch Slider (CAP1203)",
+            "name": "qwiic_cap1203.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/v4cn5d22",
+            "url": "drivers/qwiic_cap1203/package.json"
+        },
+        {
+            "friendlyName": "Servo pHAT for Raspberry Pi",
+            "name": "qwiic_pca9685.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/m64xfaw6",
+            "url": "drivers/qwiic_pca9685/package.json"
+        },
+        {
+            "friendlyName": "6DoF IMU Breakout (ISM330DHCX)",
+            "name": "qwiic_ism330dhcx.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/bdezaru6",
+            "url": "drivers/qwiic_ism330dhcx/package.json"
+        },
+        {
+            "friendlyName": "ADS1015 - 4 Channel 12-Bit ADC",
+            "name": "qwiic_ads1015.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/4wmdjdnv",
+            "url": "drivers/qwiic_ads1015/package.json"
+        },
+        {
+            "friendlyName": "6 Degree of Freedom IMU (LSM6DSO32)",
+            "name": "qwiic_lsm6dso.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/4xnzyrsh",
+            "url": "drivers/qwiic_lsm6dso/package.json"
+        },
+        {
+            "friendlyName": "MCP4725 - 12-Bit DAC Breakout",
+            "name": "qwiic_mcp4725.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/mrvjvc37",
+            "url": "drivers/qwiic_mcp4725/package.json"
+        },
+        {
+            "friendlyName": "SCD41 - Co2, Humidity, and Temperature Sensor",
+            "name": "qwiic_scd4x.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/47zy75aw",
+            "url": "drivers/qwiic_scd4x/package.json"
+        },
+        {
+            "friendlyName": "MCP9600 - Thermocouple Amplifier",
+            "name": "qwiic_mcp9600.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/2aczjfmt",
+            "url": "drivers/qwiic_mcp9600/package.json"
+        },
+        {
+            "friendlyName": "Tripple Axis Accelerometer Breakout (KX134)",
+            "name": "qwiic_kx13x.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/yc44hy4b",
+            "url": "drivers/qwiic_kx13x/package.json"
+        },
+        {
+            "friendlyName": "Triad Spectroscopy Sensor (AS7265x)",
+            "name": "qwiic_as7265x.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/58vwpfb",
+            "url": "drivers/qwiic_as7265x/package.json"
+        },
+        {
+            "friendlyName": "RV-8803 Real Time Clock Module",
+            "name": "qwiic_rv8803.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/2n72jjxu",
+            "url": "drivers/qwiic_rv8803/package.json"
+        },
+        {
+            "friendlyName": "Qwiic Twist",
+            "name": "qwiic_twist.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/yjvtbyza",
+            "url": "drivers/qwiic_twist/package.json"
+        },
+        {
+            "friendlyName": "TMP117 - High Precision Temperature Sensor",
+            "name": "qwiic_tmp1117.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/3pr6fndj",
+            "url": "drivers/qwiic_tmp117/package.json"
+        },
+        {
+            "friendlyName": "Qwiic MicroPressure Sensor",
+            "name": "qwiic_micropressure.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/mady48df",
+            "url": "drivers/qwiic_micropressure/package.json"
+        },
+        {
+            "friendlyName": "BMP581 - Pressure Sensor",
+            "name": "qwiic_bmp581.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/3uj3e72n",
+            "url": "drivers/qwiic_bmp581/package.json"
+        },
+        {
+            "friendlyName": "MAX17043 LiPo Fuel Gauge",
+            "name": "qwiic_max1704x.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/yc6vcz9h",
+            "url": "drivers/qwiic_max1704x/package.json"
+        },
+        {
+            "friendlyName": "DFRobot HUSKYLENS AI Machine Vision Sensor",
+            "name": "qwiic_huskylens.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/4jytm58t",
+            "url": "drivers/qwiic_huskylens/package.json"
+        },
+        {
+            "friendlyName": "Ultrasounic Distance Sensor - HC-SR04",
+            "name": "qwiic_ultrasonic.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/37mv5e8m",
+            "url": "drivers/qwiic_ultrasonic/package.json"
+        },
+        {
+            "friendlyName": "NIR/VIS Spectral Sensor (AS726x)",
+            "name": "qwiic_as726x.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/bdhkbe2s",
+            "url": "drivers/qwiic_as726x/package.json"
+        },
+        {
+            "friendlyName": "Multi-Spectral Sensor (AS7343)",
+            "name": "qwiic_as7343.py",
+            "manufacturer": "SparkFun Electronics",
+            "version": "2.0.0",
+            "docUrl": "https://tinyurl.com/rf7vaw24",
+            "url": "drivers/qwiic_as7343/package.json"
+        }
+    ]
+}

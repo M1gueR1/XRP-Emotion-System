@@ -1,0 +1,23 @@
+{
+  "urls": [
+    [
+      "qwiic_sgp40/__init__.py",
+      "drivers/qwiic_sgp40/__init__.py"
+    ],
+    [
+      "qwiic_sgp40/DFRobot_SGP40_VOCAlgorithm.py",
+      "drivers/qwiic_sgp40/DFRobot_SGP40_VOCAlgorithm.py"
+    ],
+    [
+      "qwiic_sgp40/qwiic_sgp40.py",
+      "drivers/qwiic_sgp40/qwiic_sgp40.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.0"
+}

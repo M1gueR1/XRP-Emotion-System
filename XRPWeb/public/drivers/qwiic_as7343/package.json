@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_as7343.py",
+      "drivers/qwiic_as7343/qwiic_as7343.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "1.0.0"
+}

@@ -1,0 +1,10 @@
+[
+  {
+    "kind": "BLOCK",
+    "type": "sf_alphanumeric_write"
+  },
+  {
+    "kind": "BLOCK", 
+    "type": "sf_alphanumeric_clear"
+  }
+]

@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_as726x.py",
+      "drivers/qwiic_as726x/qwiic_as726x.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.0"
+}

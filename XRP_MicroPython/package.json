@@ -1,0 +1,78 @@
+{
+    "urls": [
+      ["XRPLib/__init__.py", "github:Open-STEM/XRP_Micropython/XRPLib/__init__.py"],
+      ["XRPLib/board.py", "github:Open-STEM/XRP_Micropython/XRPLib/board.py"],
+      ["XRPLib/controller.py", "github:Open-STEM/XRP_Micropython/XRPLib/controller.py"],
+      ["XRPLib/defaults.py", "github:Open-STEM/XRP_Micropython/XRPLib/defaults.py"],
+      ["XRPLib/differential_drive.py", "github:Open-STEM/XRP_Micropython/XRPLib/differential_drive.py"],
+      ["XRPLib/encoded_motor.py", "github:Open-STEM/XRP_Micropython/XRPLib/encoded_motor.py"],
+      ["XRPLib/encoder.py", "github:Open-STEM/XRP_Micropython/XRPLib/encoder.py"],
+      ["XRPLib/gamepad.py", "github:Open-STEM/XRP_Micropython/XRPLib/gamepad.py"],
+      ["XRPLib/imu_defs.py", "github:Open-STEM/XRP_Micropython/XRPLib/imu_defs.py"],
+      ["XRPLib/imu.py", "github:Open-STEM/XRP_Micropython/XRPLib/imu.py"],
+      ["XRPLib/motor_group.py", "github:Open-STEM/XRP_Micropython/XRPLib/motor_group.py"],
+      ["XRPLib/motor.py", "github:Open-STEM/XRP_Micropython/XRPLib/motor.py"],
+      ["XRPLib/pid.py", "github:Open-STEM/XRP_Micropython/XRPLib/pid.py"],
+      ["XRPLib/rangefinder.py", "github:Open-STEM/XRP_Micropython/XRPLib/rangefinder.py"],
+      ["XRPLib/reflectance.py", "github:Open-STEM/XRP_Micropython/XRPLib/reflectance.py"],
+      ["XRPLib/resetbot.py", "github:Open-STEM/XRP_Micropython/XRPLib/resetbot.py"],
+      ["XRPLib/servo.py", "github:Open-STEM/XRP_Micropython/XRPLib/servo.py"],
+      ["XRPLib/timeout.py", "github:Open-STEM/XRP_Micropython/XRPLib/timeout.py"],
+      ["XRPLib/webserver.py", "github:Open-STEM/XRP_Micropython/XRPLib/webserver.py"],
+      ["XRPExamples/__init__.py", "github:Open-STEM/XRP_Micropython/XRPExamples/__init__.py"],
+      ["XRPExamples/drive_examples.py", "github:Open-STEM/XRP_Micropython/XRPExamples/drive_examples.py"],
+      ["XRPExamples/gamepad_example.blocks", "github:Open-STEM/XRP_Micropython/XRPExamples/gamepad_example.blocks"],
+      ["XRPExamples/installation_verification.py", "github:Open-STEM/XRP_Micropython/XRPExamples/installation_verification.py"],
+      ["XRPExamples/led_example.py", "github:Open-STEM/XRP_Micropython/XRPExamples/led_example.py"],
+      ["XRPExamples/sensor_examples.py", "github:Open-STEM/XRP_Micropython/XRPExamples/sensor_examples.py"],
+      ["XRPExamples/webserver_example.py", "github:Open-STEM/XRP_Micropython/XRPExamples/webserver_example.py"],
+      [
+        "XRPLib/emotion.py",
+        "github:Open-STEM/XRP_Micropython/XRPLib/emotion.py"
+      ],
+      [
+        "XRPExamples/emotion_example.py",
+        "github:Open-STEM/XRP_Micropython/XRPExamples/emotion_example.py"
+      ],
+      [
+      "XRPLib/emotion_xpp.py",
+      "github:Open-STEM/XRP_Micropython/XRPLib/emotion_xpp.py"
+    ],
+    [
+      "XRPLib/emotion_motion.py",
+      "github:Open-STEM/XRP_Micropython/XRPLib/emotion_motion.py"
+    ],
+    [
+      "XRPExamples/emotion_motion_test.py",
+      "github:Open-STEM/XRP_Micropython/XRPExamples/emotion_motion_test.py"
+    ],
+    [
+      "EmotionLib/__init__.py",
+      "github:Open-STEM/XRP_MicroPython/EmotionLib/__init__.py"
+    ],
+    [
+      "EmotionLib/emotion.py",
+      "github:Open-STEM/XRP_MicroPython/EmotionLib/emotion.py"
+    ],
+    [
+      "EmotionLib/emotion_definition.py",
+      "github:Open-STEM/XRP_MicroPython/EmotionLib/emotion_definition.py"
+    ],
+    [
+      "EmotionLib/emotion_motion.py",
+      "github:Open-STEM/XRP_MicroPython/EmotionLib/emotion_motion.py"
+    ],
+    [
+      "EmotionLib/emotion_xpp.py",
+      "github:Open-STEM/XRP_MicroPython/EmotionLib/emotion_xpp.py"
+    ],
+    [
+  "EmotionLib/emotion_hardware.py",
+  "github:Open-STEM/XRP_MicroPython/EmotionLib/emotion_hardware.py"
+]
+    ],
+    "deps": [
+      ["github:pimoroni/phew", "latest"]
+    ],
+    "version": "2.1.3"
+  }

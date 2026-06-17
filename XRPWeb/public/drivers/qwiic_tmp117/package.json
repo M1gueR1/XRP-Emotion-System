@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_template.py",
+      "drivers/qwiic_tmp117/qwiic_template.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "1.0.0"
+}

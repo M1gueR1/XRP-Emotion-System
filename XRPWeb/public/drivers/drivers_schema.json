@@ -1,0 +1,35 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "XRP Robot Supported Drivers",
+    "description": "This file contains the list of drivers supported by XRP Robot.",
+    "type": "object",
+    "properties": {
+        "drivers": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the driver."
+                    },
+                    "manufacturer": {
+                        "type": "string",
+                        "description": "Manufacturer of the driver."
+                    },
+                    "version": {
+                        "type": "string",
+                        "description": "Version of the driver."
+                    },
+                    "url": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "URL to the driver's download link."
+                    }
+                },
+                "required": ["name", "manufacturer", "version", "url"]
+            }
+        }
+    },
+    "required": ["drivers"]
+}

@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_ens160.py",
+      "drivers/qwiic_ens160/qwiic_ens160.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.0"
+}

@@ -1,0 +1,28 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$comment": "This schema is used to validate the editors.json file.",
+    "description": "A schema for the editors.json file.",
+    "$id": "https://Open-Stem/XRPWeb/src/schema/editors.schema.json",
+    "type": "array",
+    "editors": {
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "string"
+            },
+            "path": {
+                "type": "string"
+            },
+            "content": {
+                "type": "string"
+            },
+            "isSaveToXRP": {
+                "type": "boolean"
+            },
+            "isBlockly" : {
+                "type": "boolean"
+            }
+        },
+        "required": ["id", "path", "value"]
+    }
+}

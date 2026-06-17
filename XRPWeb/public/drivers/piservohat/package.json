@@ -1,0 +1,19 @@
+{
+  "urls": [
+    [
+      "pi_servo_hat.py",
+      "drivers/piservohat/pi_servo_hat.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ],
+    [
+      "qwiic_pca9685.py",
+      "drivers/qwiic_pca9685/package.json"
+    ]
+  ],
+  "version": "2.0.0"
+}

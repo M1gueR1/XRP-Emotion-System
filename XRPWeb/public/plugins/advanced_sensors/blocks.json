@@ -1,0 +1,10 @@
+[
+  {
+    "kind": "BLOCK",
+    "type": "xrp_advanced_distance"
+  },
+  {
+    "kind": "BLOCK", 
+    "type": "xrp_temperature_sensor"
+  }
+]

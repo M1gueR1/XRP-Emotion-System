@@ -1,0 +1,23 @@
+{
+  "urls": [
+    [
+      "qwiic_titan_gps.py",
+      "drivers/qwiic_titan_gps/qwiic_titan_gps.py"
+    ],
+    [
+      "micropyGPS.py",
+      "drivers/qwiic_titan_gps/micropyGPS.py"
+    ],
+    [
+      "__init__.py",
+      "drivers/qwiic_titan_gps/__init__.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.1"
+}

@@ -1,0 +1,21 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$comment": "This schema defines the structure of the admin object used in authorization.",
+    "description": "Schema for admin authorization object",
+    "type": "object",
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "user's name as given and last name"
+        },
+        "email": {
+            "type": "string",
+            "description": "user's email address"
+        },
+        "mode": {
+            "type": "number",
+            "description": "user mode setting"
+        }
+    },
+    "required": ["name", "email", "mode"]
+}

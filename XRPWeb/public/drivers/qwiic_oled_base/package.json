@@ -1,0 +1,59 @@
+{
+  "urls": [
+    [
+      "qwiic_oled/fonts/0_font5x7.bin",
+      "drivers/qwiic_oled_base/fonts/0_font5x7.bin"
+    ],
+    [
+      "qwiic_oled/fonts/1_font8x16.bin",
+      "drivers/qwiic_oled_base/fonts/1_font8x16.bin"
+    ],
+    [
+      "qwiic_oled/fonts/2_7segment.bin",
+      "drivers/qwiic_oled_base/fonts/2_7segment.bin"
+    ],
+    [
+      "qwiic_oled/fonts/3_fontlargenumber.bin",
+      "drivers/qwiic_oled_base/fonts/3_fontlargenumber.bin"
+    ],
+    [
+      "qwiic_oled/fonts/4_fontlargeletter31x48.bin",
+      "drivers/qwiic_oled_base/fonts/4_fontlargeletter31x48.bin"
+    ],
+    [
+      "qwiic_oled/__init__.py",
+      "drivers/qwiic_oled_base/__init__.py"
+    ],
+    [
+      "qwiic_oled/oled_fonts.py",
+      "drivers/qwiic_oled_base/oled_fonts.py"
+    ],
+    [
+      "qwiic_oled/oled_logos.py",
+      "drivers/qwiic_oled_base/oled_logos.py"
+    ],
+    [
+      "qwiic_oled/qwiic_large_oled.py",
+      "drivers/qwiic_oled_base/qwiic_large_oled.py"
+    ],
+    [
+      "qwiic_oled/qwiic_micro_oled.py",
+      "drivers/qwiic_oled_base/qwiic_micro_oled.py"
+    ],
+    [
+      "qwiic_oled/qwiic_oled_base.py",
+      "drivers/qwiic_oled_base/qwiic_oled_base.py"
+    ],
+    [
+      "qwiic_oled/qwiic_oled_display.py",
+      "drivers/qwiic_oled_base/qwiic_oled_display.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.1"
+}

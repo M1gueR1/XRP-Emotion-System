@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_fs3000.py",
+      "drivers/qwiic_fs3000/qwiic_fs3000.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.0"
+}

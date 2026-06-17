@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_icm20948.py",
+      "drivers/qwiic_9dof/qwiic_icm20948.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.1"
+}

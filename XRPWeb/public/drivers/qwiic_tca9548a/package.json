@@ -1,0 +1,15 @@
+{
+  "urls": [
+    [
+      "qwiic_tca9548a.py",
+      "drivers/qwiic_tca9548a/qwiic_tca9548a.py"
+    ]
+  ],
+  "deps": [
+    [
+      "qwiic_i2c",
+      "drivers/qwiic_i2c/package.json"
+    ]
+  ],
+  "version": "2.0.0"
+}
