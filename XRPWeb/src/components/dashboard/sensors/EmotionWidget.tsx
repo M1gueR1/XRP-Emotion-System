@@ -203,7 +203,7 @@ const lastSoundEventRef =
     robotEmotion !== null;
 
   const activeEmotionId =
-  robotEmotion?.emotionId ?? 1;
+  robotEmotion?.emotionId ?? 0;
 
   const officialConfig =
   getEmotionById(
@@ -259,18 +259,7 @@ const repeatCount =
     robotEmotion?.emotionFlags ?? 0;
 
   const emotionNameForSound =
-  customConfig?.name ??
-  (
-    activeEmotionId === 0
-      ? "idle"
-      : activeEmotionId === 1
-        ? "happy"
-        : activeEmotionId === 2
-          ? "nervous"
-          : activeEmotionId === 3
-            ? "lost"
-            : null
-  );
+  config.name;
 
   const activeSoundMode =
     customConfig?.soundMode ??
@@ -365,6 +354,10 @@ const repeatCount =
   const robotIsPlaying =
     robotEmotion?.emotionStatus === 1;
 
+  const robotShouldAnimate =
+  robotIsPlaying ||
+  config.name === "idle";
+
   useEffect(() => {
     if (
       !emotionSoundsEnabled ||
@@ -453,11 +446,10 @@ const repeatCount =
     usingRobotData,
   ]);
 
-  const isPlaying = usingRobotData
-    ? robotIsPlaying &&
-      !animationFinished
-    : localPlaying &&
-      !animationFinished;
+  const isPlaying =
+  usingRobotData
+    ? robotShouldAnimate
+    : localPlaying;
 
   useEffect(() => {
       if (

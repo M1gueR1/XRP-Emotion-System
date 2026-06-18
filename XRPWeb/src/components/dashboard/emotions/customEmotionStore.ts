@@ -3,6 +3,10 @@ import type {
   CustomEmotionRecord,
 } from "./customEmotionTypes";
 
+import {
+  OFFICIAL_EMOTION_NAMES,
+} from "./officialEmotionCatalog";
+
 
 const DATABASE_NAME =
   "xrp-emotion-framework";
@@ -25,13 +29,8 @@ export const CUSTOM_EMOTION_ID_MAX = 255;
 const MAX_CUSTOM_SOUND_BYTES = 5 * 1024 * 1024;
 
 
-const RESERVED_EMOTION_NAMES =
-  new Set([
-    "idle",
-    "happy",
-    "nervous",
-    "lost",
-  ]);
+
+
 
 
 function requestToPromise<T>(
@@ -193,7 +192,7 @@ function validateEmotionInput(
   }
 
   if (
-    RESERVED_EMOTION_NAMES.has(
+    OFFICIAL_EMOTION_NAMES.has(
       uniqueName
     )
   ) {

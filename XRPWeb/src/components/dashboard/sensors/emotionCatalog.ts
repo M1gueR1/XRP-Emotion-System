@@ -1,83 +1,117 @@
+import {
+  OFFICIAL_EMOTIONS,
+  type OfficialEmotionName,
+  type OfficialEmotionRepeatMode,
+} from "../emotions/officialEmotionCatalog";
+
+
 export type EmotionName =
-  | "happy"
-  | "nervous"
-  | "lost";
+  OfficialEmotionName;
+
 
 export interface EmotionVisualConfig {
   id: number;
   name: EmotionName;
   label: string;
+
   imagePath: string;
+
   frameWidth: number;
   frameHeight: number;
   frameCount: number;
+
   fps: number;
+
+  repeatMode:
+    OfficialEmotionRepeatMode;
+
+  repeatModeId: number;
+  repeatCount: number;
 }
 
-export const EMOTION_BY_ID: Record<
-  number,
-  EmotionVisualConfig
-> = {
-  1: {
-    id: 1,
-    name: "happy",
-    label: "Happy",
-    imagePath: "/emotions/happy.png",
-    frameWidth: 64,
-    frameHeight: 64,
-    frameCount: 4,
-    fps: 4,
-  },
 
-  2: {
-    id: 2,
-    name: "nervous",
-    label: "Nervous",
-    imagePath: "/emotions/nervous.png",
-    frameWidth: 64,
-    frameHeight: 64,
-    frameCount: 4,
-    fps: 6,
-  },
+const REPEAT_MODE_IDS:
+  Record<
+    OfficialEmotionRepeatMode,
+    number
+  > = {
+    once: 1,
+    loop: 2,
+    count: 3,
+    ping_pong: 4,
+  };
 
-  3: {
-    id: 3,
-    name: "lost",
-    label: "Lost",
-    imagePath: "/emotions/lost.png",
-    frameWidth: 64,
-    frameHeight: 64,
-    frameCount: 4,
-    fps: 4,
-  },
-};
 
-export const EMOTION_ID_BY_NAME: Record<
-  EmotionName,
-  number
-> = {
-  happy: 1,
-  nervous: 2,
-  lost: 3,
-};
+export const EMOTION_NAMES =
+  OFFICIAL_EMOTIONS.map(
+    (emotion) =>
+      emotion.uniqueName
+  ) as EmotionName[];
 
-export const EMOTION_NAMES = Object.values(
-  EMOTION_BY_ID
-).map(
-  (emotion) => emotion.name
-);
 
-export const getEmotionById = (
+export const EMOTION_ID_BY_NAME =
+  Object.fromEntries(
+    OFFICIAL_EMOTIONS.map(
+      (emotion) => [
+        emotion.uniqueName,
+        emotion.id,
+      ]
+    )
+  ) as Record<
+    EmotionName,
+    number
+  >;
+
+
+export const EMOTION_BY_ID =
+  Object.fromEntries(
+    OFFICIAL_EMOTIONS.map(
+      (emotion) => [
+        emotion.id,
+        {
+          id: emotion.id,
+          name: emotion.uniqueName,
+          label: emotion.displayName,
+
+          imagePath:
+            emotion.imagePath,
+
+          frameWidth:
+            emotion.frameWidth,
+
+          frameHeight:
+            emotion.frameHeight,
+
+          frameCount:
+            emotion.frameCount,
+
+          fps:
+            emotion.defaultFps,
+
+          repeatMode:
+            emotion.repeatMode,
+
+          repeatModeId:
+            REPEAT_MODE_IDS[
+              emotion.repeatMode
+            ],
+
+          repeatCount:
+            emotion.repeatCount ?? -1,
+        },
+      ]
+    )
+  ) as Record<
+    number,
+    EmotionVisualConfig
+  >;
+
+
+export function getEmotionById(
   emotionId: number
-): EmotionVisualConfig | null => {
-  return EMOTION_BY_ID[emotionId] ?? null;
-};
-
-export const getEmotionByName = (
-  emotionName: EmotionName
-): EmotionVisualConfig => {
-  const emotionId =
-    EMOTION_ID_BY_NAME[emotionName];
-
-  return EMOTION_BY_ID[emotionId];
-};
+): EmotionVisualConfig {
+  return (
+    EMOTION_BY_ID[emotionId] ??
+    EMOTION_BY_ID[0]!
+  );
+}

@@ -6,6 +6,10 @@ import {
   useState,
 } from "react";
 
+import {
+  OFFICIAL_EMOTION_NAMES,
+} from "./officialEmotionCatalog";
+
 import Dialog from "../../dialogs/dialog";
 
 import {
@@ -102,14 +106,6 @@ function StoredEmotionPreview({
 }
 
 
-const RESERVED_EMOTION_NAMES =
-  new Set([
-    "idle",
-    "happy",
-    "nervous",
-    "lost",
-  ]);
-
 
 function normalizeUniqueName(
   value: string
@@ -135,7 +131,7 @@ function normalizeUniqueName(
   }
 
   if (
-    RESERVED_EMOTION_NAMES.has(
+    OFFICIAL_EMOTION_NAMES.has(
       result
     )
   ) {

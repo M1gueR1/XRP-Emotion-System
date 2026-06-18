@@ -197,37 +197,52 @@ function getEmotionPattern(
     );
 
   if (
-    emotionId === 0 ||
-    normalizedName === "idle"
+    normalizedName === "idle" ||
+    emotionId === 0
   ) {
     return null;
   }
 
   if (
-    emotionId === 1 ||
-    normalizedName === "happy"
+    [
+      "excited",
+      "celebration",
+      "delighted",
+      "ready_to_race",
+    ].includes(normalizedName)
+  ) {
+    return EXCITED_PATTERN;
+  }
+
+  if (
+    [
+      "happy",
+      "chuckled",
+      "amazed",
+      "love_it",
+      "in_love",
+    ].includes(normalizedName)
   ) {
     return HAPPY_PATTERN;
   }
 
   if (
-    emotionId === 2 ||
-    normalizedName === "nervous"
+    [
+      "puzzled",
+      "frustrated",
+      "upset",
+    ].includes(normalizedName)
   ) {
     return NERVOUS_PATTERN;
   }
 
   if (
-    emotionId === 3 ||
-    normalizedName === "lost"
+    [
+      "sad",
+      "angry",
+    ].includes(normalizedName)
   ) {
     return LOST_PATTERN;
-  }
-
-  if (
-    normalizedName === "excited"
-  ) {
-    return EXCITED_PATTERN;
   }
 
   return createFallbackPattern(

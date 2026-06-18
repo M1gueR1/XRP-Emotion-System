@@ -58,42 +58,56 @@ class Emotion:
             time.ticks_ms()
         )
 
-        self.register_definition(
-            EmotionDefinition(
-                name="idle",
-                emotion_id=0,
-                playback_fps=0,
-                min_time_before_switch_ms=0,
-                repeat_mode="once",
-            )
+        # Official emotion IDs. These values must stay
+        # synchronized with XRPWeb's official catalog.
+        official_emotions = (
+            ("idle", 0, 4),
+            ("happy", 1, 6),
+            ("chuckled", 2, 7),
+            ("excited", 3, 8),
+            ("celebration", 4, 8),
+            ("amazed", 5, 6),
+            ("puzzled", 6, 5),
+            ("frustrated", 7, 6),
+            ("upset", 8, 5),
+            ("sad", 9, 4),
+            ("angry", 10, 7),
+            ("love_it", 11, 6),
+            ("in_love", 12, 5),
+            ("delighted", 13, 6),
+            ("ready_to_race", 14, 8),
         )
 
-        self.register_definition(
-            EmotionDefinition(
-                name="happy",
-                emotion_id=1,
+        for (
+            emotion_name,
+            emotion_id,
+            playback_fps,
+        ) in official_emotions:
+            self.register_definition(
+                EmotionDefinition(
+                    name=emotion_name,
+                    emotion_id=emotion_id,
+                    playback_fps=playback_fps,
+                    min_time_before_switch_ms=(
+                        0
+                        if emotion_name == "idle"
+                        else None
+                    ),
+                    repeat_mode="loop",
+                    flag_overrides=(
+                        "dashboard_screen",
+                    ),
+                )
             )
-        )
-
-        self.register_definition(
-            EmotionDefinition(
-                name="nervous",
-                emotion_id=2,
-                playback_fps=6,
-            )
-        )
-
-        self.register_definition(
-            EmotionDefinition(
-                name="lost",
-                emotion_id=3,
-            )
-        )
 
         if publisher is not None:
             self.set_publisher(
                 publisher
             )
+
+            # Publish the initial Idle state so the
+            # dashboard can render immediately.
+            self._publish()
 
     @staticmethod
     def _validate_name(name):

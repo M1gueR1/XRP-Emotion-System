@@ -10,6 +10,11 @@ import type {
   CustomEmotionRepeatMode,
 } from "../dashboard/emotions/customEmotionTypes";
 
+import {
+  OFFICIAL_EMOTIONS as
+    OFFICIAL_EMOTION_DEFINITIONS,
+} from "../dashboard/emotions/officialEmotionCatalog";
+
 
 export interface BlocklyEmotionEntry {
   uniqueName: string;
@@ -34,44 +39,30 @@ type BlocklyDropdownOption = [
 
 
 const OFFICIAL_EMOTIONS:
-  BlocklyEmotionEntry[] = [
-    {
-      uniqueName: "idle",
-      displayName: "Idle",
-      emotionId: 0,
-      defaultFps: 0,
-      repeatMode: "once",
-      repeatCount: null,
-      isCustom: false,
-    },
-    {
-      uniqueName: "happy",
-      displayName: "Happy",
-      emotionId: 1,
-      defaultFps: 4,
-      repeatMode: "loop",
-      repeatCount: null,
-      isCustom: false,
-    },
-    {
-      uniqueName: "nervous",
-      displayName: "Nervous",
-      emotionId: 2,
-      defaultFps: 6,
-      repeatMode: "loop",
-      repeatCount: null,
-      isCustom: false,
-    },
-    {
-      uniqueName: "lost",
-      displayName: "Lost",
-      emotionId: 3,
-      defaultFps: 4,
-      repeatMode: "loop",
-      repeatCount: null,
-      isCustom: false,
-    },
-  ];
+  BlocklyEmotionEntry[] =
+    OFFICIAL_EMOTION_DEFINITIONS.map(
+      (emotion) => ({
+        uniqueName:
+          emotion.uniqueName,
+
+        displayName:
+          emotion.displayName,
+
+        emotionId:
+          emotion.id,
+
+        defaultFps:
+          emotion.defaultFps,
+
+        repeatMode:
+          emotion.repeatMode,
+
+        repeatCount:
+          emotion.repeatCount,
+
+        isCustom: false,
+      })
+    );
 
 
 let customEmotions:
