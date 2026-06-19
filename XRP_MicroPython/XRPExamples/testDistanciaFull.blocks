@@ -1,0 +1,106 @@
+from EmotionLib import Emotion, EmotionDefinition, XPPEmotionPublisher
+from EmotionLib import EmotionHardwareConfig, EmotionMotionController
+from XRPLib.board import Board
+from XRPLib.rangefinder import Rangefinder
+from XRPLib.differential_drive import DifferentialDrive
+import time
+
+distance = None
+
+emotionPublisher = XPPEmotionPublisher()
+emotion = Emotion(
+    publisher=emotionPublisher.publish_state
+)
+
+emotionHardware = EmotionHardwareConfig(
+    drive_left_port="L",
+    drive_right_port="R",
+    invert_left=False,
+    invert_right=False,
+    aux_motor_1_port=None,
+    aux_motor_2_port=None,
+    invert_aux_motor_1=False,
+    invert_aux_motor_2=False,
+    use_imu=True,
+)
+emotionDrive = emotionHardware.create_drivetrain()
+emotionMotion = EmotionMotionController(emotionDrive)
+emotion.set_motion_controller(emotionMotion)
+
+emotion.register_definition(
+    EmotionDefinition(
+        name="happy",
+        emotion_id=1,
+        playback_fps=None,
+        frame_subset=None,
+        min_time_before_switch_ms=0,
+        repeat_mode="loop",
+        repeat_count=None,
+        flag_overrides=("dashboard_screen",),
+    )
+)
+
+emotion.register_definition(
+    EmotionDefinition(
+        name="frustrated",
+        emotion_id=7,
+        playback_fps=7,
+        frame_subset=None,
+        min_time_before_switch_ms=0,
+        repeat_mode="loop",
+        repeat_count=None,
+        flag_overrides=("dashboard_screen", "drivetrain"),
+    )
+)
+
+emotion.register_definition(
+    EmotionDefinition(
+        name="sad",
+        emotion_id=9,
+        playback_fps=3,
+        frame_subset=None,
+        min_time_before_switch_ms=0,
+        repeat_mode="loop",
+        repeat_count=None,
+        flag_overrides=("dashboard_screen",),
+    )
+)
+
+board = Board.get_default_board()
+
+rangefinder = Rangefinder.get_default_rangefinder()
+
+differentialDrive = DifferentialDrive.get_default_differential_drive()
+
+
+emotion.configure_motion(
+    "frustrated",
+    steps=(
+        (130, 0.3, 0.5),
+        (130, 0.3, -0.5),
+        (110, 0.2, 0.35),
+        (110, 0.2, -0.35),
+    ),
+    repeat=True,
+)
+while not (board.is_button_pressed()):
+  distance = rangefinder.distance()
+  if distance <= 5:
+    emotion.set_emotion("sad", force_reset=False)
+  elif distance <= 15:
+    emotion.set_emotion("frustrated", force_reset=False)
+  else:
+    emotion.set_emotion("happy", force_reset=False)
+  emotion.run_emotion()
+  if (emotion.is_overriding_drive()) == False:
+    if distance > 15:
+      differentialDrive.arcade(0.55, 0)
+    else:
+      differentialDrive.stop()
+  time.sleep(0.02)
+differentialDrive.stop()
+
+
+
+## 2026-06-18 14:06:15
+##XRPBLOCKS {"blocks":{"languageVersion":0,"blocks":[{"type":"xrp_emotion_configure_hardware","id":"i~+%30hI$yKXQ`g:*t]a","x":190,"y":-30,"fields":{"DRIVE_LEFT_PORT":"L","INVERT_LEFT":false,"DRIVE_RIGHT_PORT":"R","INVERT_RIGHT":false,"AUX_MOTOR_1_PORT":"NONE","INVERT_AUX_MOTOR_1":false,"AUX_MOTOR_2_PORT":"NONE","INVERT_AUX_MOTOR_2":false,"USE_IMU":true},"next":{"block":{"type":"xrp_emotion_define","id":"?(Jz4@%Oj00[z;W)(S.q","fields":{"EMOTION":"happy","FPS_MODE":"DEFAULT","FPS_VALUE_STATUS":"Default:","FPS":6,"MIN_TIME_MODE":"CUSTOM","MIN_TIME_VALUE_STATUS":"Custom:","MIN_TIME":0,"FRAME_MODE":"ALL","FRAME_SUBSET":"1,2,3,2","REPEAT_MODE":"loop","REPEAT_DEFAULT_LABEL":"Default: Loop continuously","REPEAT_COUNT":3,"OVERRIDE_DASHBOARD":true,"OVERRIDE_DRIVETRAIN":false,"OVERRIDE_LED":false},"next":{"block":{"type":"xrp_emotion_define","id":"mP;dkH,*3V05!|(:m$,t","fields":{"EMOTION":"frustrated","FPS_MODE":"CUSTOM","FPS_VALUE_STATUS":"Custom:","FPS":7,"MIN_TIME_MODE":"CUSTOM","MIN_TIME_VALUE_STATUS":"Custom:","MIN_TIME":0,"FRAME_MODE":"ALL","FRAME_SUBSET":"1,2,3,2","REPEAT_MODE":"loop","REPEAT_DEFAULT_LABEL":"Default: Loop continuously","REPEAT_COUNT":3,"OVERRIDE_DASHBOARD":true,"OVERRIDE_DRIVETRAIN":true,"OVERRIDE_LED":false},"next":{"block":{"type":"xrp_emotion_define_motion","id":"khs6AXu([4A!B|iO{N6#","fields":{"EMOTION":"frustrated","REPEAT":"True"},"inputs":{"STEPS":{"block":{"type":"xrp_emotion_motion_step","id":"Be=Gcv71a!3]JuU$_-2G","fields":{"DURATION":130,"STRAIGHT":0.3,"TURN":0.5},"next":{"block":{"type":"xrp_emotion_motion_step","id":"0S[yZ~HFU(Yo(:XdLJ%F","fields":{"DURATION":130,"STRAIGHT":0.3,"TURN":-0.5},"next":{"block":{"type":"xrp_emotion_motion_step","id":"!HelLJZ:I2Rk*Tjntp%r","fields":{"DURATION":110,"STRAIGHT":0.2,"TURN":0.35},"next":{"block":{"type":"xrp_emotion_motion_step","id":"NwF8FUp-rY{R|lD??u{k","fields":{"DURATION":110,"STRAIGHT":0.2,"TURN":-0.35}}}}}}}}}},"next":{"block":{"type":"xrp_emotion_define","id":"hz]EdRzANWg%6OQ,tq,g","fields":{"EMOTION":"sad","FPS_MODE":"CUSTOM","FPS_VALUE_STATUS":"Custom:","FPS":3,"MIN_TIME_MODE":"CUSTOM","MIN_TIME_VALUE_STATUS":"Custom:","MIN_TIME":0,"FRAME_MODE":"ALL","FRAME_SUBSET":"1,2,3,2","REPEAT_MODE":"loop","REPEAT_DEFAULT_LABEL":"Default: Loop continuously","REPEAT_COUNT":3,"OVERRIDE_DASHBOARD":true,"OVERRIDE_DRIVETRAIN":false,"OVERRIDE_LED":false},"next":{"block":{"type":"controls_whileUntil","id":"Un7jdBTLuxN5{y7Tcm|o","fields":{"MODE":"UNTIL"},"inputs":{"BOOL":{"block":{"type":"xrp_button_pressed","id":"/n@%^G)NH*5lTNn]]EWG"}},"DO":{"block":{"type":"variables_set","id":"{f#1G[`T-X~3@IvWl%(G","fields":{"VAR":{"id":"W38_8fwD%x~I0i^K=%I+"}},"inputs":{"VALUE":{"block":{"type":"xrp_getsonardist","id":"M,0a2[`em0RM`MJc*4lo"}}},"next":{"block":{"type":"controls_if","id":":97|W8u_Q-U;~wKQ}U~V","extraState":{"elseIfCount":1,"hasElse":true},"inputs":{"IF0":{"block":{"type":"logic_compare","id":"^~4A_Af@f:EweQE8mWu%","fields":{"OP":"LTE"},"inputs":{"A":{"block":{"type":"variables_get","id":"G-,zg[brlq%md{FW1_46","fields":{"VAR":{"id":"W38_8fwD%x~I0i^K=%I+"}}}},"B":{"block":{"type":"math_number","id":"JAei2Z1FFrfM+HuF%N)U","fields":{"NUM":5}}}}}},"DO0":{"block":{"type":"xrp_emotion_set","id":"iv,Ys@|_3tMI*ELD=9xk","fields":{"EMOTION":"sad","FORCE_RESET":"False"}}},"IF1":{"block":{"type":"logic_compare","id":"hHZ;FYQ`0?:mV/l~}Zib","fields":{"OP":"LTE"},"inputs":{"A":{"block":{"type":"variables_get","id":"WY-P6G*z0f|3lyv)~78:","fields":{"VAR":{"id":"W38_8fwD%x~I0i^K=%I+"}}}},"B":{"block":{"type":"math_number","id":"{[(]Mb{,m:AkJL]4fbqO","fields":{"NUM":15}}}}}},"DO1":{"block":{"type":"xrp_emotion_set","id":",2;pU6_(#BW(o^W.26Z~","fields":{"EMOTION":"frustrated","FORCE_RESET":"False"}}},"ELSE":{"block":{"type":"xrp_emotion_set","id":"BmSjD=SiHf^/WrP$Q=Ya","fields":{"EMOTION":"happy","FORCE_RESET":"False"}}}},"next":{"block":{"type":"xrp_emotion_run","id":"l3=`3pz#_FM5~SVO{G}2","next":{"block":{"type":"controls_if","id":"9uVSi*QFKy[Sl=~:i8HC","inputs":{"IF0":{"block":{"type":"logic_compare","id":"EcgTitSF{hWCN79}8h58","fields":{"OP":"EQ"},"inputs":{"A":{"block":{"type":"xrp_emotion_controls_drivetrain","id":"xGRBi0:Hq{x4tlj0Ag9s"}},"B":{"block":{"type":"logic_boolean","id":"2SLJ;:9qrhP3*#W!gDTS","fields":{"BOOL":"FALSE"}}}}}},"DO0":{"block":{"type":"controls_if","id":"K=X.^q{k?9pIvHF,0,(r","extraState":{"hasElse":true},"inputs":{"IF0":{"block":{"type":"logic_compare","id":"@225@AS.ja.K^ZSj/A^0","fields":{"OP":"GT"},"inputs":{"A":{"block":{"type":"variables_get","id":"^tJ;hql!M:j`vX}xR:v@","fields":{"VAR":{"id":"W38_8fwD%x~I0i^K=%I+"}}}},"B":{"block":{"type":"math_number","id":"U#.XYd|*FuqfpnlwXms9","fields":{"NUM":15}}}}}},"DO0":{"block":{"type":"xrp_arcade","id":"uw1jz2*SCI9]8G4U36}T","inputs":{"STRAIGHT":{"shadow":{"type":"math_number","id":"M!MppBFQR7hh@.{9kK.q","fields":{"NUM":0.55}}},"TURN":{"shadow":{"type":"math_number","id":"RAig(Jp,?{ckZ^QJTNp]","fields":{"NUM":0}}}}}},"ELSE":{"block":{"type":"xrp_stop_motors","id":"XQ_g4r5Jy2{H}}(jf2y4"}}}}}},"next":{"block":{"type":"xrp_sleep","id":"!#MS8zjkGHv,R6*2qq6n","inputs":{"TIME":{"shadow":{"type":"math_number","id":"F6PUB?.x1?;8smovDIXM","fields":{"NUM":0.02}}}}}}}}}}}}}}},"next":{"block":{"type":"xrp_stop_motors","id":"Yzxw922yF-iela=}9=YN"}}}}}}}}}}}}}]},"variables":[{"name":"distance","id":"W38_8fwD%x~I0i^K=%I+"}]}

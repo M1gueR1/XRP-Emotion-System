@@ -4,16 +4,60 @@ type EmotionSoundRequest = {
 };
 
 
-type ToneStep = {
-  frequency: number;
+type Waveform =
+  | "sine"
+  | "square"
+  | "sawtooth"
+  | "triangle";
+
+
+type DroidContour =
+  | "up"
+  | "down"
+  | "zigzag"
+  | "question"
+  | "burst"
+  | "warm";
+
+
+type DroidSoundProfile = {
+  minimumFrequency: number;
+  maximumFrequency: number;
+
+  minimumChirps: number;
+  maximumChirps: number;
+
+  minimumDurationSeconds: number;
+  maximumDurationSeconds: number;
+
+  minimumGapSeconds: number;
+  maximumGapSeconds: number;
+
+  gain: number;
+
+  waveforms:
+    readonly Waveform[];
+
+  contour: DroidContour;
+
+  wobbleDepth: number;
+};
+
+
+type DroidToneStep = {
+  startFrequency: number;
+  endFrequency: number;
+
   startSeconds: number;
   durationSeconds: number;
+
   gain: number;
-  waveform:
-    | "sine"
-    | "square"
-    | "sawtooth"
-    | "triangle";
+  waveform: Waveform;
+
+  wobbleDepth: number;
+  wobbleCycles: number;
+
+  detuneCents: number;
 };
 
 
@@ -23,113 +67,277 @@ type ActiveVoice = {
 };
 
 
+const DROID_VARIATION_COUNT = 5;
 
 
-const HAPPY_PATTERN: ToneStep[] = [
-  {
-    frequency: 523.25,
-    startSeconds: 0,
-    durationSeconds: 0.14,
-    gain: 0.42,
-    waveform: "sine",
+/*
+ * Original electronic sound profiles.
+ *
+ * Each profile produces five deterministic but
+ * different variations. They use synthetic pitch
+ * bends and do not contain copyrighted samples.
+ */
+const OFFICIAL_DROID_PROFILES = {
+  happy: {
+    minimumFrequency: 700,
+    maximumFrequency: 1900,
+    minimumChirps: 3,
+    maximumChirps: 5,
+    minimumDurationSeconds: 0.045,
+    maximumDurationSeconds: 0.10,
+    minimumGapSeconds: 0.01,
+    maximumGapSeconds: 0.055,
+    gain: 0.24,
+    waveforms: [
+      "sine",
+      "triangle",
+    ],
+    contour: "up",
+    wobbleDepth: 0.035,
   },
-  {
-    frequency: 659.25,
-    startSeconds: 0.12,
-    durationSeconds: 0.22,
-    gain: 0.48,
-    waveform: "sine",
-  },
-];
 
+  chuckled: {
+    minimumFrequency: 850,
+    maximumFrequency: 2300,
+    minimumChirps: 5,
+    maximumChirps: 8,
+    minimumDurationSeconds: 0.025,
+    maximumDurationSeconds: 0.065,
+    minimumGapSeconds: 0.005,
+    maximumGapSeconds: 0.03,
+    gain: 0.20,
+    waveforms: [
+      "triangle",
+      "square",
+    ],
+    contour: "zigzag",
+    wobbleDepth: 0.075,
+  },
 
-const NERVOUS_PATTERN: ToneStep[] = [
-  {
-    frequency: 440,
-    startSeconds: 0,
-    durationSeconds: 0.09,
-    gain: 0.25,
-    waveform: "triangle",
+  excited: {
+    minimumFrequency: 750,
+    maximumFrequency: 2600,
+    minimumChirps: 5,
+    maximumChirps: 8,
+    minimumDurationSeconds: 0.025,
+    maximumDurationSeconds: 0.075,
+    minimumGapSeconds: 0.005,
+    maximumGapSeconds: 0.035,
+    gain: 0.23,
+    waveforms: [
+      "triangle",
+      "square",
+    ],
+    contour: "burst",
+    wobbleDepth: 0.09,
   },
-  {
-    frequency: 392,
-    startSeconds: 0.08,
-    durationSeconds: 0.09,
-    gain: 0.25,
-    waveform: "triangle",
-  },
-  {
-    frequency: 440,
-    startSeconds: 0.16,
-    durationSeconds: 0.09,
-    gain: 0.25,
-    waveform: "triangle",
-  },
-  {
-    frequency: 392,
-    startSeconds: 0.24,
-    durationSeconds: 0.11,
-    gain: 0.25,
-    waveform: "triangle",
-  },
-];
 
+  celebration: {
+    minimumFrequency: 650,
+    maximumFrequency: 2700,
+    minimumChirps: 6,
+    maximumChirps: 10,
+    minimumDurationSeconds: 0.025,
+    maximumDurationSeconds: 0.08,
+    minimumGapSeconds: 0.005,
+    maximumGapSeconds: 0.04,
+    gain: 0.22,
+    waveforms: [
+      "triangle",
+      "square",
+      "sine",
+    ],
+    contour: "burst",
+    wobbleDepth: 0.085,
+  },
 
-const LOST_PATTERN: ToneStep[] = [
-  {
-    frequency: 392,
-    startSeconds: 0,
-    durationSeconds: 0.18,
-    gain: 0.34,
-    waveform: "sine",
+  amazed: {
+    minimumFrequency: 450,
+    maximumFrequency: 2450,
+    minimumChirps: 3,
+    maximumChirps: 5,
+    minimumDurationSeconds: 0.065,
+    maximumDurationSeconds: 0.145,
+    minimumGapSeconds: 0.015,
+    maximumGapSeconds: 0.07,
+    gain: 0.23,
+    waveforms: [
+      "sine",
+      "triangle",
+    ],
+    contour: "up",
+    wobbleDepth: 0.045,
   },
-  {
-    frequency: 329.63,
-    startSeconds: 0.15,
-    durationSeconds: 0.20,
-    gain: 0.32,
-    waveform: "sine",
-  },
-  {
-    frequency: 261.63,
-    startSeconds: 0.32,
-    durationSeconds: 0.28,
-    gain: 0.30,
-    waveform: "sine",
-  },
-];
 
+  puzzled: {
+    minimumFrequency: 450,
+    maximumFrequency: 1850,
+    minimumChirps: 3,
+    maximumChirps: 6,
+    minimumDurationSeconds: 0.055,
+    maximumDurationSeconds: 0.125,
+    minimumGapSeconds: 0.02,
+    maximumGapSeconds: 0.09,
+    gain: 0.21,
+    waveforms: [
+      "triangle",
+      "sine",
+    ],
+    contour: "question",
+    wobbleDepth: 0.06,
+  },
 
-const EXCITED_PATTERN: ToneStep[] = [
-  {
-    frequency: 523.25,
-    startSeconds: 0,
-    durationSeconds: 0.10,
-    gain: 0.40,
-    waveform: "triangle",
+  frustrated: {
+    minimumFrequency: 230,
+    maximumFrequency: 1450,
+    minimumChirps: 5,
+    maximumChirps: 8,
+    minimumDurationSeconds: 0.025,
+    maximumDurationSeconds: 0.075,
+    minimumGapSeconds: 0.005,
+    maximumGapSeconds: 0.035,
+    gain: 0.18,
+    waveforms: [
+      "square",
+      "sawtooth",
+      "triangle",
+    ],
+    contour: "zigzag",
+    wobbleDepth: 0.12,
   },
-  {
-    frequency: 659.25,
-    startSeconds: 0.09,
-    durationSeconds: 0.11,
-    gain: 0.42,
-    waveform: "triangle",
+
+  upset: {
+    minimumFrequency: 250,
+    maximumFrequency: 1100,
+    minimumChirps: 3,
+    maximumChirps: 5,
+    minimumDurationSeconds: 0.07,
+    maximumDurationSeconds: 0.155,
+    minimumGapSeconds: 0.02,
+    maximumGapSeconds: 0.075,
+    gain: 0.20,
+    waveforms: [
+      "triangle",
+      "sine",
+    ],
+    contour: "down",
+    wobbleDepth: 0.045,
   },
-  {
-    frequency: 783.99,
-    startSeconds: 0.18,
-    durationSeconds: 0.12,
-    gain: 0.45,
-    waveform: "triangle",
+
+  sad: {
+    minimumFrequency: 170,
+    maximumFrequency: 850,
+    minimumChirps: 2,
+    maximumChirps: 4,
+    minimumDurationSeconds: 0.11,
+    maximumDurationSeconds: 0.23,
+    minimumGapSeconds: 0.035,
+    maximumGapSeconds: 0.11,
+    gain: 0.21,
+    waveforms: [
+      "sine",
+      "triangle",
+    ],
+    contour: "down",
+    wobbleDepth: 0.025,
   },
-  {
-    frequency: 987.77,
-    startSeconds: 0.28,
-    durationSeconds: 0.22,
-    gain: 0.46,
-    waveform: "triangle",
+
+  angry: {
+    minimumFrequency: 140,
+    maximumFrequency: 950,
+    minimumChirps: 5,
+    maximumChirps: 8,
+    minimumDurationSeconds: 0.025,
+    maximumDurationSeconds: 0.07,
+    minimumGapSeconds: 0.002,
+    maximumGapSeconds: 0.03,
+    gain: 0.14,
+    waveforms: [
+      "sawtooth",
+      "square",
+    ],
+    contour: "burst",
+    wobbleDepth: 0.14,
   },
-];
+
+  love_it: {
+    minimumFrequency: 550,
+    maximumFrequency: 1750,
+    minimumChirps: 3,
+    maximumChirps: 5,
+    minimumDurationSeconds: 0.075,
+    maximumDurationSeconds: 0.15,
+    minimumGapSeconds: 0.015,
+    maximumGapSeconds: 0.065,
+    gain: 0.22,
+    waveforms: [
+      "sine",
+      "triangle",
+    ],
+    contour: "warm",
+    wobbleDepth: 0.035,
+  },
+
+  in_love: {
+    minimumFrequency: 450,
+    maximumFrequency: 1650,
+    minimumChirps: 4,
+    maximumChirps: 6,
+    minimumDurationSeconds: 0.075,
+    maximumDurationSeconds: 0.16,
+    minimumGapSeconds: 0.015,
+    maximumGapSeconds: 0.07,
+    gain: 0.21,
+    waveforms: [
+      "sine",
+      "triangle",
+    ],
+    contour: "warm",
+    wobbleDepth: 0.04,
+  },
+
+  delighted: {
+    minimumFrequency: 850,
+    maximumFrequency: 2350,
+    minimumChirps: 4,
+    maximumChirps: 7,
+    minimumDurationSeconds: 0.035,
+    maximumDurationSeconds: 0.085,
+    minimumGapSeconds: 0.005,
+    maximumGapSeconds: 0.04,
+    gain: 0.22,
+    waveforms: [
+      "triangle",
+      "sine",
+    ],
+    contour: "up",
+    wobbleDepth: 0.065,
+  },
+
+  ready_to_race: {
+    minimumFrequency: 300,
+    maximumFrequency: 2350,
+    minimumChirps: 6,
+    maximumChirps: 9,
+    minimumDurationSeconds: 0.02,
+    maximumDurationSeconds: 0.065,
+    minimumGapSeconds: 0.002,
+    maximumGapSeconds: 0.025,
+    gain: 0.19,
+    waveforms: [
+      "square",
+      "triangle",
+    ],
+    contour: "burst",
+    wobbleDepth: 0.11,
+  },
+} satisfies Record<
+  string,
+  DroidSoundProfile
+>;
+
+type OfficialDroidEmotion =
+  keyof typeof OFFICIAL_DROID_PROFILES;
 
 
 function clamp(
@@ -138,7 +346,10 @@ function clamp(
   maximum: number
 ): number {
   return Math.min(
-    Math.max(value, minimum),
+    Math.max(
+      value,
+      minimum
+    ),
     maximum
   );
 }
@@ -155,99 +366,516 @@ function normalizeEmotionName(
 }
 
 
-function createFallbackPattern(
-  emotionId: number
-): ToneStep[] {
-  /*
-   * Give unknown custom emotions a deterministic
-   * two-note sound based on their ID.
-   */
-  const baseFrequency =
-    330 + (
-      Math.abs(emotionId) % 8
-    ) * 28;
+function hashString(
+  value: string
+): number {
+  let hash = 2166136261;
 
-  return [
-    {
-      frequency: baseFrequency,
-      startSeconds: 0,
-      durationSeconds: 0.13,
-      gain: 0.32,
-      waveform: "sine",
-    },
-    {
-      frequency:
-        baseFrequency * 1.25,
-      startSeconds: 0.11,
-      durationSeconds: 0.18,
-      gain: 0.36,
-      waveform: "sine",
-    },
-  ];
+  for (
+    let index = 0;
+    index < value.length;
+    index += 1
+  ) {
+    hash ^= value.charCodeAt(
+      index
+    );
+
+    hash = Math.imul(
+      hash,
+      16777619
+    );
+  }
+
+  return hash >>> 0;
 }
 
 
-function getEmotionPattern(
-  emotionId: number,
-  emotionName?: string | null
-): ToneStep[] | null {
-  const normalizedName =
-    normalizeEmotionName(
-      emotionName
+/*
+ * Seeded random generator.
+ *
+ * This makes the five variations stable:
+ * variation 1 always sounds like variation 1,
+ * but the selected variation changes randomly.
+ */
+function createSeededRandom(
+  seed: number
+): () => number {
+  let state = seed >>> 0;
+
+  return () => {
+    state += 0x6d2b79f5;
+
+    let value = state;
+
+    value = Math.imul(
+      value ^ (value >>> 15),
+      value | 1
     );
 
-  if (
-    normalizedName === "idle" ||
-    emotionId === 0
-  ) {
-    return null;
-  }
+    value ^=
+      value +
+      Math.imul(
+        value ^ (value >>> 7),
+        value | 61
+      );
 
-  if (
-    [
-      "excited",
-      "celebration",
-      "delighted",
-      "ready_to_race",
-    ].includes(normalizedName)
-  ) {
-    return EXCITED_PATTERN;
-  }
+    return (
+      (
+        value ^
+        (value >>> 14)
+      ) >>> 0
+    ) / 4294967296;
+  };
+}
 
-  if (
-    [
-      "happy",
-      "chuckled",
-      "amazed",
-      "love_it",
-      "in_love",
-    ].includes(normalizedName)
-  ) {
-    return HAPPY_PATTERN;
-  }
 
-  if (
-    [
-      "puzzled",
-      "frustrated",
-      "upset",
-    ].includes(normalizedName)
-  ) {
-    return NERVOUS_PATTERN;
-  }
-
-  if (
-    [
-      "sad",
-      "angry",
-    ].includes(normalizedName)
-  ) {
-    return LOST_PATTERN;
-  }
-
-  return createFallbackPattern(
-    emotionId
+function randomBetween(
+  random: () => number,
+  minimum: number,
+  maximum: number
+): number {
+  return (
+    minimum +
+    random() *
+    (
+      maximum -
+      minimum
+    )
   );
+}
+
+
+function randomInteger(
+  random: () => number,
+  minimum: number,
+  maximum: number
+): number {
+  return Math.floor(
+    randomBetween(
+      random,
+      minimum,
+      maximum + 1
+    )
+  );
+}
+
+
+function pickRandom<T>(
+  random: () => number,
+  values: readonly T[]
+): T {
+  const index = Math.min(
+    values.length - 1,
+    Math.floor(
+      random() *
+      values.length
+    )
+  );
+
+  return values[index];
+}
+
+
+function createFallbackProfile(
+  emotionId: number
+): DroidSoundProfile {
+  const offset =
+    (
+      Math.abs(emotionId) % 8
+    ) * 45;
+
+  return {
+    minimumFrequency:
+      500 + offset,
+
+    maximumFrequency:
+      1700 + offset,
+
+    minimumChirps: 3,
+    maximumChirps: 5,
+
+    minimumDurationSeconds:
+      0.04,
+
+    maximumDurationSeconds:
+      0.11,
+
+    minimumGapSeconds:
+      0.01,
+
+    maximumGapSeconds:
+      0.06,
+
+    gain: 0.20,
+
+    waveforms: [
+      "triangle",
+      "sine",
+    ],
+
+    contour: "zigzag",
+
+    wobbleDepth: 0.055,
+  };
+}
+
+
+function createPitchPair(
+  profile: DroidSoundProfile,
+  chirpIndex: number,
+  chirpCount: number,
+  random: () => number
+): {
+  startFrequency: number;
+  endFrequency: number;
+} {
+  const range =
+    profile.maximumFrequency -
+    profile.minimumFrequency;
+
+  const lowerMiddle =
+    profile.minimumFrequency +
+    range * 0.42;
+
+  const upperMiddle =
+    profile.minimumFrequency +
+    range * 0.58;
+
+  const low = randomBetween(
+    random,
+    profile.minimumFrequency,
+    lowerMiddle
+  );
+
+  const high = randomBetween(
+    random,
+    upperMiddle,
+    profile.maximumFrequency
+  );
+
+
+  switch (profile.contour) {
+    case "up":
+      return {
+        startFrequency: low,
+        endFrequency: high,
+      };
+
+
+    case "down":
+      return {
+        startFrequency: high,
+        endFrequency: low,
+      };
+
+
+    case "zigzag":
+      return chirpIndex % 2 === 0
+        ? {
+          startFrequency: low,
+          endFrequency: high,
+        }
+        : {
+          startFrequency: high,
+          endFrequency: low,
+        };
+
+
+    case "question": {
+      const isLast =
+        chirpIndex ===
+        chirpCount - 1;
+
+      if (isLast) {
+        return {
+          startFrequency:
+            profile.minimumFrequency +
+            range * 0.35,
+
+          endFrequency:
+            profile.maximumFrequency,
+        };
+      }
+
+      return chirpIndex % 2 === 0
+        ? {
+          startFrequency: high,
+          endFrequency:
+            lowerMiddle,
+        }
+        : {
+          startFrequency: low,
+          endFrequency:
+            upperMiddle,
+        };
+    }
+
+
+    case "warm": {
+      const warmLow =
+        profile.minimumFrequency +
+        range * 0.2;
+
+      const warmHigh =
+        profile.minimumFrequency +
+        range * 0.72;
+
+      return chirpIndex % 3 === 2
+        ? {
+          startFrequency:
+            warmHigh,
+
+          endFrequency:
+            warmLow,
+        }
+        : {
+          startFrequency:
+            warmLow,
+
+          endFrequency:
+            warmHigh,
+        };
+    }
+
+
+    case "burst":
+    default: {
+      let startFrequency =
+        randomBetween(
+          random,
+          profile.minimumFrequency,
+          profile.maximumFrequency
+        );
+
+      let endFrequency =
+        randomBetween(
+          random,
+          profile.minimumFrequency,
+          profile.maximumFrequency
+        );
+
+      /*
+       * Avoid almost-flat tones. Droid chirps
+       * sound better with a noticeable bend.
+       */
+      const minimumDifference =
+        range * 0.22;
+
+      if (
+        Math.abs(
+          endFrequency -
+          startFrequency
+        ) < minimumDifference
+      ) {
+        if (
+          startFrequency <
+          profile.minimumFrequency +
+          range / 2
+        ) {
+          endFrequency =
+            Math.min(
+              profile.maximumFrequency,
+              startFrequency +
+              minimumDifference
+            );
+        } else {
+          endFrequency =
+            Math.max(
+              profile.minimumFrequency,
+              startFrequency -
+              minimumDifference
+            );
+        }
+      }
+
+      return {
+        startFrequency,
+        endFrequency,
+      };
+    }
+  }
+}
+
+
+function createDroidPattern(
+  emotionKey: string,
+  profile: DroidSoundProfile,
+  variationIndex: number
+): DroidToneStep[] {
+  const seed =
+    (
+      hashString(emotionKey) ^
+      Math.imul(
+        variationIndex + 1,
+        0x9e3779b1
+      )
+    ) >>> 0;
+
+  const random =
+    createSeededRandom(seed);
+
+  const chirpCount =
+    randomInteger(
+      random,
+      profile.minimumChirps,
+      profile.maximumChirps
+    );
+
+  const steps:
+    DroidToneStep[] = [];
+
+  let currentTime = 0;
+
+
+  for (
+    let chirpIndex = 0;
+    chirpIndex < chirpCount;
+    chirpIndex += 1
+  ) {
+    const durationSeconds =
+      randomBetween(
+        random,
+        profile
+          .minimumDurationSeconds,
+
+        profile
+          .maximumDurationSeconds
+      );
+
+    const gapSeconds =
+      randomBetween(
+        random,
+        profile.minimumGapSeconds,
+        profile.maximumGapSeconds
+      );
+
+    const pitch =
+      createPitchPair(
+        profile,
+        chirpIndex,
+        chirpCount,
+        random
+      );
+
+    const variationEnergy =
+      0.90 +
+      (
+        variationIndex *
+        0.025
+      );
+
+    steps.push({
+      startFrequency:
+        pitch.startFrequency,
+
+      endFrequency:
+        pitch.endFrequency,
+
+      startSeconds:
+        currentTime,
+
+      durationSeconds,
+
+      gain:
+        profile.gain *
+        variationEnergy *
+        randomBetween(
+          random,
+          0.82,
+          1
+        ),
+
+      waveform:
+        pickRandom(
+          random,
+          profile.waveforms
+        ),
+
+      wobbleDepth:
+        profile.wobbleDepth *
+        randomBetween(
+          random,
+          0.65,
+          1.2
+        ),
+
+      wobbleCycles:
+        randomBetween(
+          random,
+          1,
+          4.5
+        ),
+
+      detuneCents:
+        randomBetween(
+          random,
+          -24,
+          24
+        ),
+    });
+
+    currentTime +=
+      durationSeconds +
+      gapSeconds;
+  }
+
+  return steps;
+}
+
+
+/*
+ * Creates a pitch-bend curve with a small
+ * electronic wobble.
+ */
+function createFrequencyCurve(
+  step: DroidToneStep
+): Float32Array {
+  const pointCount = 32;
+
+  const curve =
+    new Float32Array(
+      pointCount
+    );
+
+  for (
+    let index = 0;
+    index < pointCount;
+    index += 1
+  ) {
+    const progress =
+      index /
+      (
+        pointCount - 1
+      );
+
+    const baseFrequency =
+      step.startFrequency +
+      (
+        step.endFrequency -
+        step.startFrequency
+      ) *
+      progress;
+
+    const wobble =
+      Math.sin(
+        progress *
+        Math.PI *
+        2 *
+        step.wobbleCycles
+      ) *
+      step.wobbleDepth;
+
+    curve[index] =
+      Math.max(
+        30,
+        baseFrequency *
+        (
+          1 + wobble
+        )
+      );
+  }
+
+  return curve;
 }
 
 
@@ -261,18 +889,22 @@ class EmotionSoundManager {
   private activeVoices =
     new Set<ActiveVoice>();
 
-  private volume = 0.35;
-
   private activeAudioSource:
-  AudioBufferSourceNode | null = null;
+    AudioBufferSourceNode | null =
+      null;
 
-    private audioBufferCache =
+  private audioBufferCache =
     new WeakMap<
-        Blob,
-        Promise<AudioBuffer>
+      Blob,
+      Promise<AudioBuffer>
     >();
 
-    private playRequestId = 0;
+  private lastVariationByEmotion =
+    new Map<string, number>();
+
+  private playRequestId = 0;
+
+  private volume = 0.35;
 
 
   async enable():
@@ -361,28 +993,78 @@ class EmotionSoundManager {
   }
 
 
-  stop(
-    fadeSeconds = 0.03
-  ): void {
+  private chooseVariation(
+    emotionKey: string
+  ): number {
+    const previousVariation =
+      this.lastVariationByEmotion.get(
+        emotionKey
+      );
 
+    let nextVariation =
+      Math.floor(
+        Math.random() *
+        DROID_VARIATION_COUNT
+      );
+
+    /*
+     * Do not repeat the same variation
+     * twice consecutively.
+     */
+    if (
+      previousVariation !== undefined &&
+      nextVariation ===
+        previousVariation
+    ) {
+      const offset =
+        1 +
+        Math.floor(
+          Math.random() *
+          (
+            DROID_VARIATION_COUNT -
+            1
+          )
+        );
+
+      nextVariation =
+        (
+          previousVariation +
+          offset
+        ) %
+        DROID_VARIATION_COUNT;
+    }
+
+    this.lastVariationByEmotion.set(
+      emotionKey,
+      nextVariation
+    );
+
+    return nextVariation;
+  }
+
+
+  stop(
+    fadeSeconds = 0.025
+  ): void {
     this.playRequestId += 1;
 
     if (
-    this.activeAudioSource !== null
+      this.activeAudioSource !== null
     ) {
-    try {
+      try {
         this.activeAudioSource.stop();
-    } catch {
-        // The source may already have finished.
-    }
+      } catch {
+        // Source may already have ended.
+      }
 
-    try {
-        this.activeAudioSource.disconnect();
-    } catch {
-        // It may already be disconnected.
-    }
+      try {
+        this.activeAudioSource
+          .disconnect();
+      } catch {
+        // Source may already be disconnected.
+      }
 
-    this.activeAudioSource = null;
+      this.activeAudioSource = null;
     }
 
     if (
@@ -419,60 +1101,17 @@ class EmotionSoundManager {
           );
 
         voice.oscillator.stop(
-          now + fadeSeconds + 0.01
+          now +
+          fadeSeconds +
+          0.01
         );
       } catch {
-        /*
-         * A source that already ended cannot
-         * always be stopped a second time.
-         */
+        // Oscillator may already have ended.
       }
     }
 
     this.activeVoices.clear();
   }
-
-  private getAudioBuffer(
-    blob: Blob
-    ): Promise<AudioBuffer> {
-    const cached =
-        this.audioBufferCache.get(
-        blob
-        );
-
-    if (cached) {
-        return cached;
-    }
-
-    if (
-        this.audioContext === null
-    ) {
-        return Promise.reject(
-        new Error(
-            "AudioContext is unavailable"
-        )
-        );
-    }
-
-    const context =
-        this.audioContext;
-
-    const promise =
-        blob
-        .arrayBuffer()
-        .then((arrayBuffer) =>
-            context.decodeAudioData(
-            arrayBuffer.slice(0)
-            )
-        );
-
-    this.audioBufferCache.set(
-        blob,
-        promise
-    );
-
-    return promise;
-    }
 
 
   playEmotion({
@@ -487,23 +1126,56 @@ class EmotionSoundManager {
       return false;
     }
 
-    const pattern =
-      getEmotionPattern(
-        emotionId,
+    const normalizedName =
+      normalizeEmotionName(
         emotionName
       );
 
     this.stop();
 
-    if (pattern === null) {
+    /*
+     * Idle remains silent.
+     */
+    if (
+      normalizedName === "idle" ||
+      emotionId === 0
+    ) {
       return true;
     }
+
+    const profile =
+      normalizedName in
+      OFFICIAL_DROID_PROFILES
+        ? OFFICIAL_DROID_PROFILES[
+            normalizedName as OfficialDroidEmotion
+          ]
+        : createFallbackProfile(
+            emotionId
+          );
+
+    const emotionKey =
+      normalizedName ||
+      `emotion_${emotionId}`;
+
+    const variationIndex =
+      this.chooseVariation(
+        emotionKey
+      );
+
+    const pattern =
+      createDroidPattern(
+        emotionKey,
+        profile,
+        variationIndex
+      );
 
     const context =
       this.audioContext;
 
     const startTime =
-      context.currentTime + 0.02;
+      context.currentTime +
+      0.025;
+
 
     for (const step of pattern) {
       const oscillator =
@@ -515,12 +1187,6 @@ class EmotionSoundManager {
       oscillator.type =
         step.waveform;
 
-      oscillator.frequency.setValueAtTime(
-        step.frequency,
-        startTime +
-          step.startSeconds
-      );
-
       const noteStart =
         startTime +
         step.startSeconds;
@@ -531,19 +1197,47 @@ class EmotionSoundManager {
 
       const attackEnd =
         Math.min(
-          noteStart + 0.015,
+          noteStart + 0.008,
           noteEnd
         );
 
-      gainNode.gain.setValueAtTime(
-        0.0001,
-        noteStart
-      );
+      const releaseStart =
+        Math.max(
+          attackEnd,
+          noteEnd - 0.018
+        );
+
+      oscillator.detune
+        .setValueAtTime(
+          step.detuneCents,
+          noteStart
+        );
+
+      oscillator.frequency
+        .setValueCurveAtTime(
+          createFrequencyCurve(
+            step
+          ),
+          noteStart,
+          step.durationSeconds
+        );
+
+      gainNode.gain
+        .setValueAtTime(
+          0.0001,
+          noteStart
+        );
 
       gainNode.gain
         .linearRampToValueAtTime(
           step.gain,
           attackEnd
+        );
+
+      gainNode.gain
+        .setValueAtTime(
+          step.gain,
+          releaseStart
         );
 
       gainNode.gain
@@ -574,8 +1268,12 @@ class EmotionSoundManager {
           voice
         );
 
-        oscillator.disconnect();
-        gainNode.disconnect();
+        try {
+          oscillator.disconnect();
+          gainNode.disconnect();
+        } catch {
+          // Already disconnected.
+        }
       };
 
       oscillator.start(
@@ -583,95 +1281,153 @@ class EmotionSoundManager {
       );
 
       oscillator.stop(
-        noteEnd + 0.02
+        noteEnd + 0.015
       );
     }
+
+
+    console.debug(
+      "Droid emotion sound:",
+      {
+        emotion:
+          emotionKey,
+
+        variation:
+          variationIndex + 1,
+
+        totalVariations:
+          DROID_VARIATION_COUNT,
+
+        chirps:
+          pattern.length,
+      }
+    );
 
     return true;
   }
 
+
+  private getAudioBuffer(
+    blob: Blob
+  ): Promise<AudioBuffer> {
+    const cached =
+      this.audioBufferCache.get(
+        blob
+      );
+
+    if (cached) {
+      return cached;
+    }
+
+    if (
+      this.audioContext === null
+    ) {
+      return Promise.reject(
+        new Error(
+          "AudioContext is unavailable"
+        )
+      );
+    }
+
+    const context =
+      this.audioContext;
+
+    const promise =
+      blob
+        .arrayBuffer()
+        .then((arrayBuffer) =>
+          context.decodeAudioData(
+            arrayBuffer.slice(0)
+          )
+        );
+
+    this.audioBufferCache.set(
+      blob,
+      promise
+    );
+
+    return promise;
+  }
+
+
   async playCustomAudio(
     blob: Blob
-    ): Promise<boolean> {
+  ): Promise<boolean> {
     if (
-        !this.isReady() ||
-        this.audioContext === null ||
-        this.masterGain === null
+      !this.isReady() ||
+      this.audioContext === null ||
+      this.masterGain === null
     ) {
-        return false;
+      return false;
     }
 
     this.stop();
 
     const requestId =
-        this.playRequestId;
+      this.playRequestId;
 
     try {
-        const audioBuffer =
+      const audioBuffer =
         await this.getAudioBuffer(
-            blob
+          blob
         );
 
-        /*
-        * Another emotion may have started while
-        * this file was being decoded.
-        */
-        if (
+      /*
+       * Another emotion may start while
+       * the custom audio is being decoded.
+       */
+      if (
         requestId !==
         this.playRequestId
-        ) {
+      ) {
         return false;
-        }
+      }
 
-        const source =
+      const source =
         this.audioContext
-            .createBufferSource();
+          .createBufferSource();
 
-        source.buffer =
+      source.buffer =
         audioBuffer;
 
-        /*
-        * For now, custom sounds play once whenever
-        * the emotion is activated.
-        */
-        source.loop = false;
+      source.loop = false;
 
-        source.connect(
+      source.connect(
         this.masterGain
-        );
+      );
 
-        source.onended = () => {
+      source.onended = () => {
         if (
-            this.activeAudioSource ===
-            source
+          this.activeAudioSource ===
+          source
         ) {
-            this.activeAudioSource =
+          this.activeAudioSource =
             null;
         }
 
         try {
-            source.disconnect();
+          source.disconnect();
         } catch {
-            // Already disconnected.
+          // Already disconnected.
         }
-        };
+      };
 
-        this.activeAudioSource =
+      this.activeAudioSource =
         source;
 
-        source.start();
+      source.start();
 
-        return true;
+      return true;
     } catch (error) {
-        console.error(
+      console.error(
         "Could not play custom " +
-            "emotion audio:",
+          "emotion audio:",
         error
-        );
+      );
 
-        return false;
+      return false;
     }
-    }
+  }
 
 
   async close():
@@ -688,7 +1444,11 @@ class EmotionSoundManager {
 
     this.audioContext = null;
     this.masterGain = null;
+
     this.activeVoices.clear();
+
+    this.lastVariationByEmotion
+      .clear();
   }
 }
 

@@ -1,0 +1,270 @@
+from XRPLib.board import Board
+from XRPLib.reflectance import Reflectance
+
+from EmotionLib import (
+    Emotion,
+    EmotionDefinition,
+    EmotionHardwareConfig,
+    XPPEmotionPublisher,
+)
+
+import time
+
+
+
+BASE_SPEED = 0.55
+MIN_TRACK_SPEED = 0.48
+
+TURN_GAIN = 0.90
+SLOWDOWN_GAIN = 0.80
+
+
+
+WHITE_THRESHOLD = 0.88
+
+
+BLACK_THRESHOLD = 0.93
+
+
+CENTER_DEADBAND = 0.025
+
+
+CONFIRMATION_HITS = 4
+
+LOOP_DELAY_SECONDS = 0.02
+
+
+
+hardware = EmotionHardwareConfig(
+    drive_left_port="L",
+    drive_right_port="R",
+    invert_left=False,
+    invert_right=False,
+)
+
+drive = hardware.create_drivetrain()
+
+board = Board.get_default_board()
+
+reflectance = (
+    Reflectance
+    .get_default_reflectance()
+)
+
+
+
+publisher = XPPEmotionPublisher()
+
+emotion = Emotion(
+    publisher=publisher.publish_state,
+
+    min_time_before_switch_ms=400,
+)
+
+
+emotion.register_definition(
+    EmotionDefinition(
+        name="happy",
+        emotion_id=1,
+        playback_fps=None,
+        frame_subset=None,
+        min_time_before_switch_ms=0,
+        repeat_mode="loop",
+        repeat_count=None,
+        flag_overrides=("dashboard_screen",),
+    )
+)
+
+emotion.register_definition(
+    EmotionDefinition(
+        name="frustrated",
+        emotion_id=7,
+        playback_fps=7,
+        frame_subset=None,
+        min_time_before_switch_ms=0,
+        repeat_mode="loop",
+        repeat_count=None,
+        flag_overrides=("dashboard_screen", "drivetrain"),
+    )
+)
+
+
+emotion.register_definition(
+    EmotionDefinition(
+        name="sad",
+        emotion_id=9,
+        playback_fps=3,
+        frame_subset=None,
+        min_time_before_switch_ms=0,
+        repeat_mode="loop",
+        repeat_count=None,
+        flag_overrides=("dashboard_screen",),
+    )
+)
+
+
+
+def clamp(
+    value,
+    minimum,
+    maximum,
+):
+    if value < minimum:
+        return minimum
+
+    if value > maximum:
+        return maximum
+
+    return value
+
+
+
+print("Press button to start")
+board.wait_for_button()
+
+
+time.sleep(0.5)
+
+
+publisher.reset_definitions()
+publisher.define_variables()
+
+time.sleep(0.3)
+
+
+print("Following white line")
+print("Press button again to stop")
+
+
+pending_emotion = None
+pending_hits = 0
+requested_emotion = None
+
+
+try:
+    while not board.is_button_pressed():
+
+        left = reflectance.get_left()
+        right = reflectance.get_right()
+
+        line_error = right - left
+
+        absolute_error = abs(
+            line_error
+        )
+
+        minimum_reflectance = min(
+            left,
+            right,
+        )
+
+        maximum_reflectance = max(
+            left,
+            right,
+        )
+
+
+        both_sensors_black = (
+            minimum_reflectance
+            >= BLACK_THRESHOLD
+        )
+
+        both_sensors_white = (
+            maximum_reflectance
+            <= WHITE_THRESHOLD
+        )
+
+
+
+        if both_sensors_black:
+
+            candidate_emotion = "sad"
+
+            speed = 0.0
+            turn = 0.0
+
+
+        elif (
+            both_sensors_white
+            and absolute_error
+            < CENTER_DEADBAND
+        ):
+
+            candidate_emotion = "happy"
+
+            speed = BASE_SPEED
+            turn = 0.0
+
+
+        else:
+
+            candidate_emotion = "frustrated"
+
+            speed = (
+                BASE_SPEED
+                - (
+                    absolute_error
+                    * SLOWDOWN_GAIN
+                )
+            )
+
+            speed = clamp(
+                speed,
+                MIN_TRACK_SPEED,
+                BASE_SPEED,
+            )
+
+            turn = clamp(
+                line_error * TURN_GAIN,
+                -1.0,
+                1.0,
+            )
+
+
+        if (
+            candidate_emotion
+            == pending_emotion
+        ):
+            pending_hits += 1
+
+        else:
+            pending_emotion = (
+                candidate_emotion
+            )
+
+            pending_hits = 1
+
+
+        if (
+            pending_hits
+            >= CONFIRMATION_HITS
+            and candidate_emotion
+            != requested_emotion
+        ):
+            requested_emotion = (
+                candidate_emotion
+            )
+
+            emotion.set_emotion(
+                requested_emotion
+            )
+
+
+        emotion.run_emotion()
+
+
+        drive.arcade(
+            speed,
+            turn,
+        )
+
+
+        time.sleep(
+            LOOP_DELAY_SECONDS
+        )
+
+
+finally:
+    drive.stop()
+
+    print("Stopped")

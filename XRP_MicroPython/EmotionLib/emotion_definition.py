@@ -25,8 +25,6 @@ class EmotionDefinition:
         "onboard_screen",
         "dashboard_screen",
         "speaker",
-        "aux_motor_1",
-        "aux_motor_2",
     )
 
     OVERRIDE_BITS = {
@@ -41,8 +39,6 @@ class EmotionDefinition:
         "onboard_screen": 256,
         "dashboard_screen": 512,
         "speaker": 1024,
-        "aux_motor_1": 2048,
-        "aux_motor_2": 4096,
     }
 
     def __init__(

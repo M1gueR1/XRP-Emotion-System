@@ -6,6 +6,12 @@ from .emotion_hardware import (
     EmotionHardwareConfig,
     EmotionMotorAdapter,
 )
+from .emotion_output_hub import (
+    EmotionOutputHub,
+)
+from .red_vision_display import (
+    RedVisionEmotionDisplay,
+)
 from .emotion_motion import (
     EmotionMotionController,
 )
@@ -21,4 +27,6 @@ __all__ = (
     "EmotionMotorAdapter",
     "EmotionMotionController",
     "XPPEmotionPublisher",
+    "RedVisionEmotionDisplay",
+    "EmotionOutputHub",
 )
