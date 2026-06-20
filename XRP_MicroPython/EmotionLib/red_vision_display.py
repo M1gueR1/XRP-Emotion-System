@@ -3,31 +3,69 @@ import os
 import sys
 import time
 
-import cv2 as cv
+cv = None
+np = None
 
 
-# Allow this library to find rv_init when it is
-# installed inside /lib/EmotionLib.
-try:
-    from rv_init import (
-        display as default_display,
-    )
-except ImportError:
-    RED_VISION_EXAMPLES_PATH = (
-        "/red_vision_examples"
-    )
+def _load_red_vision_dependencies():
+    """
+    Load OpenCV, ulab and the physical display only
+    when Red Vision is actually enabled.
+    """
+    global cv
+    global np
 
-    if (
-        RED_VISION_EXAMPLES_PATH
-        not in sys.path
-    ):
-        sys.path.append(
-            RED_VISION_EXAMPLES_PATH
+    if cv is None:
+        import cv2 as cv_module
+        cv = cv_module
+
+    if np is None:
+        from ulab import numpy as np_module
+        np = np_module
+
+    try:
+        from rv_init import (
+            display as default_display,
         )
 
-    from rv_init import (
-        display as default_display,
-    )
+    except ImportError:
+        red_vision_examples_path = (
+            "/red_vision_examples"
+        )
+
+        if (
+            red_vision_examples_path
+            not in sys.path
+        ):
+            sys.path.append(
+                red_vision_examples_path
+            )
+
+        from rv_init import (
+            display as default_display,
+        )
+
+    return default_display
+
+
+
+# --------------------------------------------------
+# Display geometry
+# --------------------------------------------------
+
+DISPLAY_WIDTH = 320
+DISPLAY_HEIGHT = 240
+
+FRAME_WIDTH = 192
+FRAME_HEIGHT = 192
+
+FRAME_OFFSET_X = (
+    DISPLAY_WIDTH - FRAME_WIDTH
+) // 2
+
+FRAME_OFFSET_Y = (
+    DISPLAY_HEIGHT - FRAME_HEIGHT
+) // 2
 
 
 # --------------------------------------------------
@@ -125,45 +163,94 @@ class RedVisionEmotionDisplay:
     Displays EmotionLib states on the SparkFun
     Red Vision display.
 
-    The images are stored locally on the XRP:
+    The 192x192 animation sheets are stored
+    locally on the XRP:
 
-        /emotion_assets/happy_0.png
-        /emotion_assets/happy_1.png
+        /emotion_sheets_192/happy.png
+        /emotion_sheets_192/frustrated.png
         ...
 
-    The class loads only the currently active
-    emotion into memory.
+    A reusable 320x240 black canvas centers the
+    active face on the physical display. The class
+    can cache a small number of decoded emotion
+    sheets for instant transitions.
+
+    When enabled=False, or when the display cannot
+    initialize and strict_display=False, all display
+    operations safely become no-ops.
     """
 
     def __init__(
         self,
         display=None,
-        assets_directory=(
-            "/emotion_assets"
-        ),
         sheets_directory=(
-            "/emotion_sheets"
+            "/emotion_sheets_192"
         ),
         strict_assets=False,
+        cache_capacity=3,
+        debug=False,
+        enabled=True,
+        strict_display=False,
     ):
-        self._display = (
-            default_display
-            if display is None
-            else display
-        )
+        if not isinstance(
+            enabled,
+            bool,
+        ):
+            raise TypeError(
+                "enabled must be a boolean"
+            )
 
-        self._assets_directory = (
-            assets_directory.rstrip("/")
-        )
+        if not isinstance(
+            strict_display,
+            bool,
+        ):
+            raise TypeError(
+                "strict_display must be a boolean"
+            )
+
+        self._enabled = False
+        self._display = None
+        self._display_frame = None
 
         self._sheets_directory = (
             sheets_directory.rstrip("/")
         )
-        
 
         self._strict_assets = (
             strict_assets
         )
+
+        if not isinstance(
+            debug,
+            bool,
+        ):
+            raise TypeError(
+                "debug must be a boolean"
+            )
+
+        self._debug = debug
+
+        if (
+            isinstance(cache_capacity, bool)
+            or not isinstance(
+                cache_capacity,
+                int,
+            )
+            or cache_capacity < 1
+        ):
+            raise ValueError(
+                "cache_capacity must be "
+                "an integer greater than zero"
+            )
+
+        self._cache_capacity = (
+            cache_capacity
+        )
+
+        self._sheet_cache = {}
+        self._cache_order = []
+
+        self._sheet_name = None
 
         self._active_name = None
         self._generation = -1
@@ -194,6 +281,52 @@ class RedVisionEmotionDisplay:
 
         self._last_error = None
 
+        if enabled:
+            try:
+                default_display = (
+                    _load_red_vision_dependencies()
+                )
+
+                self._display = (
+                    default_display
+                    if display is None
+                    else display
+                )
+
+                self._display_frame = (
+                    np.zeros(
+                        (
+                            DISPLAY_HEIGHT,
+                            DISPLAY_WIDTH,
+                            3,
+                        ),
+                        dtype=np.uint8,
+                    )
+                )
+
+                self._enabled = True
+
+            except Exception as error:
+                self._last_error = (
+                    "Red Vision display unavailable: "
+                    + str(error)
+                )
+
+                if strict_display:
+                    raise
+
+                self._log(
+                    self._last_error
+                )
+
+
+    def _log(
+        self,
+        *values,
+    ):
+        if self._debug:
+            print(*values)
+
 
     @staticmethod
     def _clean_name(
@@ -212,20 +345,6 @@ class RedVisionEmotionDisplay:
         return clean_value
 
 
-    def _frame_path(
-        self,
-        emotion_name,
-        frame_index,
-    ):
-        return (
-            self._assets_directory
-            + "/"
-            + emotion_name
-            + "_"
-            + str(frame_index)
-            + ".png"
-        )
-    
     def _sheet_path(
         self,
         emotion_name,
@@ -255,47 +374,63 @@ class RedVisionEmotionDisplay:
             return False
 
 
-    def _release_sheet(self):
-        self._sheet = None
-        self._sheet_frame_count = 0
-
-        gc.collect()
-        
-    def _show_preview(
+    def _touch_cache(
         self,
         emotion_name,
     ):
-        preview_path = (
-            self._frame_path(
-                emotion_name,
-                0,
-            )
-        )
-
-        if not self._asset_exists(
-            preview_path
+        if emotion_name in (
+            self._cache_order
         ):
-            return False
+            self._cache_order.remove(
+                emotion_name
+            )
 
-        preview = cv.imread(
-            preview_path
+        self._cache_order.append(
+            emotion_name
         )
 
-        if preview is None:
-            return False
 
-        cv.imshow(
-            self._display,
-            preview,
-        )
+    def _evict_cache_if_needed(
+        self,
+    ):
+        while (
+            len(self._sheet_cache)
+            > self._cache_capacity
+        ):
+            emotion_to_remove = None
 
-        del preview
-        gc.collect()
+            for emotion_name in tuple(
+                self._cache_order
+            ):
+                if (
+                    emotion_name
+                    != self._sheet_name
+                ):
+                    emotion_to_remove = (
+                        emotion_name
+                    )
+                    break
 
-        return True
+            if emotion_to_remove is None:
+                return
+
+            self._cache_order.remove(
+                emotion_to_remove
+            )
+
+            del self._sheet_cache[
+                emotion_to_remove
+            ]
+
+            self._log(
+                "Display cache evicted:",
+                emotion_to_remove,
+            )
+
+            gc.collect()
 
 
-    def _load_sheet(
+    def _read_sheet(
         self,
         emotion_name,
         frame_count,
@@ -322,19 +457,10 @@ class RedVisionEmotionDisplay:
                 )
 
             print(message)
-            return False
+            return None
 
-        # Release the previous decoded animation.
-        self._release_sheet()
-
-        # Change the visible face immediately while
-        # the complete sheet is decoded.
-        self._show_preview(
-            emotion_name
-        )
-
-        print(
-            "Loading display sheet:",
+        self._log(
+            "Decoding display sheet:",
             emotion_name,
         )
 
@@ -356,21 +482,25 @@ class RedVisionEmotionDisplay:
                 )
 
             print(message)
-            return False
+            return None
 
         expected_height = (
-            frame_count * 240
+            frame_count
+            * FRAME_HEIGHT
         )
 
         if (
             sheet.shape[0]
             != expected_height
-            or sheet.shape[1] != 320
+            or sheet.shape[1]
+            != FRAME_WIDTH
         ):
             message = (
                 "Invalid display sheet size for "
                 + emotion_name
-                + ": expected 320x"
+                + ": expected "
+                + str(FRAME_WIDTH)
+                + "x"
                 + str(expected_height)
             )
 
@@ -385,23 +515,253 @@ class RedVisionEmotionDisplay:
                 )
 
             print(message)
+            return None
+
+        self._last_error = None
+
+        return sheet
+
+
+    def _use_cached_sheet(
+        self,
+        emotion_name,
+    ):
+        cached = self._sheet_cache.get(
+            emotion_name
+        )
+
+        if cached is None:
             return False
+
+        (
+            self._sheet,
+            self._sheet_frame_count,
+        ) = cached
+
+        self._sheet_name = (
+            emotion_name
+        )
+
+        self._touch_cache(
+            emotion_name
+        )
+
+        return True
+
+
+    def _load_sheet(
+        self,
+        emotion_name,
+        frame_count,
+    ):
+        if self._use_cached_sheet(
+            emotion_name
+        ):
+            self._log(
+                "Display cache hit:",
+                emotion_name,
+            )
+
+            return True
+
+        sheet = self._read_sheet(
+            emotion_name,
+            frame_count,
+        )
+
+        if sheet is None:
+            return False
+
+        self._sheet_cache[
+            emotion_name
+        ] = (
+            sheet,
+            frame_count,
+        )
+
+        self._touch_cache(
+            emotion_name
+        )
 
         self._sheet = sheet
         self._sheet_frame_count = (
             frame_count
         )
+        self._sheet_name = (
+            emotion_name
+        )
 
-        self._last_error = None
+        self._evict_cache_if_needed()
 
-        print(
-            "Display sheet loaded:",
+        self._log(
+            "Display sheet cached:",
             emotion_name,
             frame_count,
             "frames",
         )
 
         return True
+
+
+    def preload(
+        self,
+        emotion_names,
+    ):
+        if not self._enabled:
+            return ()
+
+        """
+        Decode selected emotions before the robot
+        starts moving.
+
+        The number retained is limited by
+        cache_capacity.
+        """
+
+        if isinstance(
+            emotion_names,
+            str,
+        ):
+            emotion_names = (
+                emotion_names,
+            )
+
+        loaded_names = []
+
+        for raw_name in emotion_names:
+            emotion_name = (
+                self._clean_name(
+                    raw_name
+                )
+            )
+
+            if (
+                emotion_name
+                not in OFFICIAL_EMOTION_ASSETS
+            ):
+                message = (
+                    "Unknown display emotion: "
+                    + emotion_name
+                )
+
+                if self._strict_assets:
+                    raise ValueError(
+                        message
+                    )
+
+                print(message)
+                continue
+
+            if emotion_name in (
+                self._sheet_cache
+            ):
+                self._touch_cache(
+                    emotion_name
+                )
+
+                loaded_names.append(
+                    emotion_name
+                )
+
+                continue
+
+            frame_count = (
+                OFFICIAL_EMOTION_ASSETS[
+                    emotion_name
+                ][0]
+            )
+
+            sheet = self._read_sheet(
+                emotion_name,
+                frame_count,
+            )
+
+            if sheet is None:
+                continue
+
+            self._sheet_cache[
+                emotion_name
+            ] = (
+                sheet,
+                frame_count,
+            )
+
+            self._touch_cache(
+                emotion_name
+            )
+
+            self._evict_cache_if_needed()
+
+            loaded_names.append(
+                emotion_name
+            )
+
+            self._log(
+                "Display preloaded:",
+                emotion_name,
+            )
+
+        gc.collect()
+
+        self._log(
+            "Display cache ready:",
+            tuple(
+                self._cache_order
+            ),
+        )
+
+        return tuple(
+            loaded_names
+        )
+
+
+    def clear_cache(
+        self,
+        keep_active=True,
+    ):
+        if not self._enabled:
+            return False
+
+        if (
+            keep_active
+            and self._sheet is not None
+            and self._sheet_name is not None
+        ):
+            active_name = (
+                self._sheet_name
+            )
+
+            active_entry = (
+                self._sheet,
+                self._sheet_frame_count,
+            )
+
+            self._sheet_cache = {
+                active_name: active_entry,
+            }
+
+            self._cache_order = [
+                active_name,
+            ]
+
+        else:
+            self._sheet_cache = {}
+            self._cache_order = []
+
+            self._sheet = None
+            self._sheet_frame_count = 0
+            self._sheet_name = None
+
+        gc.collect()
+
+
+    def get_cached_emotions(self):
+        if not self._enabled:
+            return ()
+
+        return tuple(
+            self._cache_order
+        )
 
 
     @staticmethod
@@ -449,7 +809,8 @@ class RedVisionEmotionDisplay:
 
     def _show_current_frame(self):
         if (
-            self._sheet is None
+            not self._enabled
+            or self._sheet is None
             or not self._sequence
         ):
             return False
@@ -461,19 +822,42 @@ class RedVisionEmotionDisplay:
         )
 
         row_start = (
-            frame_index * 240
+            frame_index
+            * FRAME_HEIGHT
         )
 
         row_end = (
-            row_start + 240
+            row_start
+            + FRAME_HEIGHT
         )
+
+        frame = self._sheet[
+            row_start:row_end,
+            :
+        ]
+
+        display_row_end = (
+            FRAME_OFFSET_Y
+            + FRAME_HEIGHT
+        )
+
+        display_column_end = (
+            FRAME_OFFSET_X
+            + FRAME_WIDTH
+        )
+
+        # Replace only the centered face region.
+        # The surrounding pixels remain black.
+        self._display_frame[
+            FRAME_OFFSET_Y:
+            display_row_end,
+            FRAME_OFFSET_X:
+            display_column_end,
+        ] = frame
 
         cv.imshow(
             self._display,
-            self._sheet[
-                row_start:row_end,
-                :
-            ],
+            self._display_frame,
         )
 
         return True
@@ -483,6 +867,9 @@ class RedVisionEmotionDisplay:
         self,
         state,
     ):
+        if not self._enabled:
+            return False
+
         """
         Receives a state produced by Emotion.get_state().
 
@@ -678,7 +1065,7 @@ class RedVisionEmotionDisplay:
 
         self._show_current_frame()
 
-        print(
+        self._log(
             "Display state:",
             self._active_name,
             "generation:",
@@ -758,6 +1145,9 @@ class RedVisionEmotionDisplay:
 
 
     def update(self):
+        if not self._enabled:
+            return False
+
         """
         Advances the display animation without blocking.
 
@@ -809,7 +1199,10 @@ class RedVisionEmotionDisplay:
 
 
     def restart(self):
-        if self._sheet is None:
+        if (
+            not self._enabled
+            or self._sheet is None
+        ):
             return False
 
         self._sequence_position = 0
@@ -829,17 +1222,50 @@ class RedVisionEmotionDisplay:
         )
 
 
+    def is_enabled(self):
+        return self._enabled
+
+
+    def disable(self):
+        self.stop()
+
+        self._sheet = None
+        self._sheet_frame_count = 0
+        self._sheet_name = None
+        self._sheet_cache = {}
+        self._cache_order = []
+
+        self._enabled = False
+        self._display = None
+        self._display_frame = None
+
+        gc.collect()
+
+
     def stop(self):
         self._playing = False
 
 
     def close(self):
         self.stop()
-        self._release_sheet()
+
+        self._enabled = False
+        self._display = None
+
+        self._sheet = None
+        self._sheet_frame_count = 0
+        self._sheet_name = None
+
+        self._sheet_cache = {}
+        self._cache_order = []
+
+        self._display_frame = None
 
         self._active_name = None
         self._generation = -1
         self._last_state_signature = None
+
+        gc.collect()
 
 
     def get_active_emotion(self):

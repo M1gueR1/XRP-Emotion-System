@@ -269,6 +269,11 @@ const ToolboxJson = {
             "contents": [
                 {
                 "kind": "BLOCK",
+                "type":
+                    "xrp_emotion_configure_red_vision"
+                },
+                {
+                "kind": "BLOCK",
                 "type": "xrp_emotion_define"
                 },
                 {

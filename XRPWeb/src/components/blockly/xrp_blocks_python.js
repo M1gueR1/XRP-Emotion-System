@@ -4,6 +4,170 @@ import {
   getEmotionEntryByName,
 } from "./emotionCatalogBridge";
 
+
+// ---------------------------------------------------------
+// Red Vision preload configuration
+// ---------------------------------------------------------
+
+const MAX_RED_VISION_PRELOADS = 4;
+
+
+function getRedVisionPreloadNames(
+  workspace
+) {
+  if (
+    !workspace ||
+    typeof workspace.getAllBlocks
+      !== "function"
+  ) {
+    return [];
+  }
+
+  const emotionNames = [];
+  const seenNames = new Set();
+
+  const blocks =
+    workspace.getAllBlocks(
+      false
+    );
+
+  for (const currentBlock of blocks) {
+    if (
+      currentBlock.type !==
+      "xrp_emotion_define"
+    ) {
+      continue;
+    }
+
+    const shouldPreload =
+      currentBlock.getFieldValue(
+        "PRELOAD_RED_VISION"
+      ) === "TRUE";
+
+    if (!shouldPreload) {
+      continue;
+    }
+
+    const emotionName =
+      currentBlock.getFieldValue(
+        "EMOTION"
+      );
+
+    if (
+      !emotionName ||
+      seenNames.has(
+        emotionName
+      )
+    ) {
+      continue;
+    }
+
+    seenNames.add(
+      emotionName
+    );
+
+    emotionNames.push(
+      emotionName
+    );
+  }
+
+  return emotionNames;
+}
+
+
+function createPythonStringTuple(
+  values
+) {
+  const quotedValues =
+    values.map(
+      (value) =>
+        JSON.stringify(value)
+    );
+
+  if (
+    quotedValues.length === 1
+  ) {
+    return (
+      `(${quotedValues[0]},)`
+    );
+  }
+
+  return (
+    `(${quotedValues.join(", ")},)`
+  );
+}
+
+
+function updateRedVisionPreloadDefinition(
+  workspace
+) {
+  const selectedEmotionNames =
+    getRedVisionPreloadNames(
+      workspace
+    );
+
+  const emotionNames =
+    selectedEmotionNames.slice(
+      0,
+      MAX_RED_VISION_PRELOADS
+    );
+
+  if (
+    emotionNames.length === 0
+  ) {
+    delete (
+      pythonGenerator
+        .definitions_[
+          "emotion_display_preload"
+        ]
+    );
+
+    delete (
+      pythonGenerator
+        .definitions_[
+          "emotion_display_cache_warning"
+        ]
+    );
+
+    return;
+  }
+
+  const emotionTuple =
+    createPythonStringTuple(
+      emotionNames
+    );
+
+  pythonGenerator.definitions_[
+  "emotion_display_preload"
+] = [
+  "if USE_RED_VISION:",
+  "    redVisionEmotionDisplay.preload(",
+  `        ${emotionTuple}`,
+  "    )",
+].join("\n");
+
+  if (
+    selectedEmotionNames.length >
+    MAX_RED_VISION_PRELOADS
+  ) {
+    pythonGenerator.definitions_[
+      "emotion_display_cache_warning"
+    ] = [
+      "print(",
+      '    "Red Vision cache warning: ",',
+      `    "only the first ${MAX_RED_VISION_PRELOADS} emotions were preloaded",`,
+      ")",
+    ].join("\n");
+  } else {
+    delete (
+      pythonGenerator
+        .definitions_[
+          "emotion_display_cache_warning"
+        ]
+    );
+  }
+}
+
 // ---------------------------------------------------------
 // Base Emotion setup
 // ---------------------------------------------------------
@@ -11,20 +175,98 @@ import {
 function setupEmotionGenerator() {
   pythonGenerator.definitions_[
     "import_emotion"
-  ] =
-    "from EmotionLib import " +
-    "Emotion, EmotionDefinition, " +
-    "XPPEmotionPublisher";
+  ] = [
+    "from EmotionLib import (",
+    "    Emotion,",
+    "    EmotionDefinition,",
+    "    EmotionOutputHub,",
+    "    RedVisionEmotionDisplay,",
+    "    XPPEmotionPublisher,",
+    ")",
+  ].join("\n");
+
+
+  /*
+   * Global default.
+   *
+   * A Configure Red Vision block can replace
+   * this definition with False.
+   *
+   * This definition is deliberately created
+   * before emotion_setup, so USE_RED_VISION
+   * exists before the display constructor runs.
+   */
+  if (
+    !pythonGenerator.definitions_[
+      "emotion_red_vision_mode"
+    ]
+  ) {
+    pythonGenerator.definitions_[
+      "emotion_red_vision_mode"
+    ] =
+      "USE_RED_VISION = True";
+  }
+
 
   pythonGenerator.definitions_[
     "emotion_setup"
   ] = [
     "emotionPublisher = XPPEmotionPublisher()",
+    "",
+    "redVisionEmotionDisplay = (",
+    "    RedVisionEmotionDisplay(",
+    '        sheets_directory="/emotion_sheets_192",',
+    "        strict_assets=False,",
+    `        cache_capacity=${MAX_RED_VISION_PRELOADS},`,
+    "        debug=False,",
+    "        enabled=USE_RED_VISION,",
+    "        strict_display=False,",
+    "    )",
+    ")",
+    "",
+    "emotionOutputs = EmotionOutputHub(",
+    "    emotionPublisher.publish_state,",
+    "    redVisionEmotionDisplay.apply_state,",
+    "    strict=False,",
+    ")",
+    "",
     "emotion = Emotion(",
-    "    publisher=emotionPublisher.publish_state",
+    "    publisher=emotionOutputs.publish_state,",
+    "    min_time_before_switch_ms=0,",
     ")",
   ].join("\n");
 }
+
+pythonGenerator.forBlock[
+  "xrp_emotion_configure_red_vision"
+] = function (block) {
+  const enabled =
+    emotionPythonBoolean(
+      block.getFieldValue(
+        "ENABLED"
+      )
+    );
+
+  /*
+   * Replaces the global default created by
+   * setupEmotionGenerator().
+   *
+   * The definition keeps its original position,
+   * before emotion_setup.
+   */
+  pythonGenerator.definitions_[
+    "emotion_red_vision_mode"
+  ] =
+    `USE_RED_VISION = ${enabled}`;
+
+  setupEmotionGenerator();
+
+  /*
+   * This is a configuration block. It does not
+   * generate code at its visual position.
+   */
+  return "";
+};
 
 function ensureEmotionRegistration(
   emotionName
@@ -669,6 +911,10 @@ pythonGenerator.forBlock[
     `emotion_definition_${emotionName}`
   ] = definitionCode;
 
+  updateRedVisionPreloadDefinition(
+    block.workspace
+  );
+
   // Nothing is generated at the block's visual position.
   return "";
 };
@@ -695,10 +941,16 @@ pythonGenerator.forBlock['xrp_emotion_set'] = function (block) {
 };
 
 
-pythonGenerator.forBlock['xrp_emotion_run'] = function () {
+pythonGenerator.forBlock[
+  "xrp_emotion_run"
+] = function () {
   setupEmotionGenerator();
 
-  return 'emotion.run_emotion()\n';
+  return [
+    "emotion.run_emotion()",
+    "redVisionEmotionDisplay.update()",
+    "",
+  ].join("\n");
 };
 
 

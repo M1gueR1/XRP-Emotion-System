@@ -616,6 +616,53 @@ Blockly.Blocks['xrp_gp_button_pressed'] = {
 // Emotions
 // ---------------------------------------------------------
 
+Blockly.Blocks[
+  "xrp_emotion_configure_red_vision"
+] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField(
+        "Use Red Vision display"
+      )
+      .appendField(
+        new Blockly.FieldDropdown([
+          [
+            "Yes",
+            "True",
+          ],
+          [
+            "No",
+            "False",
+          ],
+        ]),
+        "ENABLED"
+      );
+
+    this.setPreviousStatement(
+      true,
+      null
+    );
+
+    this.setNextStatement(
+      true,
+      null
+    );
+
+    this.setColour(
+      "#00a6a6"
+    );
+
+    this.setTooltip(
+      "Globally enable or disable the " +
+      "physical Red Vision display. " +
+      "When disabled, no display images " +
+      "are loaded into RAM."
+    );
+
+    this.setHelpUrl("");
+  },
+};
+
 Blockly.Blocks['xrp_emotion_set'] = {
   init: function () {
     this.appendDummyInput()
@@ -655,7 +702,7 @@ Blockly.Blocks['xrp_emotion_run'] = {
     this.setNextStatement(true, null);
     this.setColour("#00a6a6");
     this.setTooltip(
-      "Apply pending emotion changes and advance non-blocking emotion actions."
+      "Apply pending emotion changes and update motion, dashboard, sound, and Red Vision display. Use repeatedly inside a loop."
     );
     this.setHelpUrl("");
   },
@@ -1311,6 +1358,30 @@ Blockly.Blocks[
         "REPEAT_COUNT"
       )
       .appendField("times");
+
+          // ---------------------------------------------
+    // Red Vision cache
+    // ---------------------------------------------
+
+    this.appendDummyInput(
+      "RED_VISION_CACHE_INPUT"
+    )
+      .appendField(
+        "preload on Red Vision"
+      )
+      .appendField(
+        new Blockly.FieldDropdown([
+          [
+            "No",
+            "FALSE",
+          ],
+          [
+            "Yes",
+            "TRUE",
+          ],
+        ]),
+        "PRELOAD_RED_VISION"
+      );
 
 
     // ---------------------------------------------
