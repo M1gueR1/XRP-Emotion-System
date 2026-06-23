@@ -34,6 +34,14 @@ import EmotionSpritePreview from
   "./EmotionSpritePreview";
 
 import {
+  downloadRedVisionSheetForTesting,
+} from "./redVisionSheetProcessor";
+
+import {
+  uploadCustomEmotionToRedVision,
+} from "./xrpRedVisionUploadService";
+
+import {
   CUSTOM_EMOTION_FRAME_SIZE_OPTIONS,
   type CustomEmotionFitMode,
   type CustomEmotionSourceMode,
@@ -348,6 +356,18 @@ function ManageEmotionsDialog({
   ] = useState(false);
 
   const [
+    uploadingEmotionName,
+    setUploadingEmotionName,
+  ] = useState<string | null>(
+    null
+  );
+
+  const [
+    uploadProgressMessage,
+    setUploadProgressMessage,
+  ] = useState("");
+
+  const [
     statusMessage,
     setStatusMessage,
   ] = useState("");
@@ -443,6 +463,7 @@ function ManageEmotionsDialog({
 
         setStatusMessage("");
         setErrorMessage("");
+        setUploadProgressMessage("");
 
         setSoundMode("default");
         setSoundBlob(null);
@@ -926,6 +947,72 @@ function ManageEmotionsDialog({
   );
 
   };
+
+
+  const handleDownloadRedVisionSheet =
+    async (
+      record:
+        CustomEmotionRecord
+    ) => {
+      setErrorMessage("");
+      setStatusMessage("");
+
+      try {
+        await downloadRedVisionSheetForTesting(
+          record
+        );
+
+        setStatusMessage(
+          "Red Vision sheet downloaded."
+        );
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : String(error)
+        );
+      }
+    };
+
+
+  const handleUploadToXrpRedVision =
+    async (
+      record:
+        CustomEmotionRecord
+    ) => {
+      setErrorMessage("");
+      setStatusMessage("");
+      setUploadProgressMessage("");
+
+      try {
+        setUploadingEmotionName(
+          record.uniqueName
+        );
+
+        await uploadCustomEmotionToRedVision(
+          record,
+          {
+            onProgress: (progress) => {
+              setUploadProgressMessage(
+                progress.message
+              );
+            },
+          }
+        );
+
+        setStatusMessage(
+          "Uploaded to XRP Red Vision."
+        );
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : String(error)
+        );
+      } finally {
+        setUploadingEmotionName(null);
+      }
+    };
 
 
   const handleDelete = async (
@@ -1434,6 +1521,12 @@ function ManageEmotionsDialog({
               </div>
             )}
 
+            {uploadProgressMessage && (
+              <div className="rounded-lg border border-blue-300 bg-blue-50 p-3 text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                {uploadProgressMessage}
+              </div>
+            )}
+
 
             <div className="flex flex-wrap gap-3">
               <div>
@@ -1504,30 +1597,65 @@ function ManageEmotionsDialog({
                         </div>
                       </div>
 
-                      <div className="mt-3 flex gap-2">
+                      <div className="mt-3 grid gap-2">
                         <button
                           type="button"
                           onClick={() => {
-                            handleEdit(
+                            void handleDownloadRedVisionSheet(
                               record
                             );
                           }}
-                          className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800"
+                          disabled={
+                            uploadingEmotionName !== null
+                          }
+                          className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          Edit
+                          Download Red Vision sheet
                         </button>
 
                         <button
                           type="button"
                           onClick={() => {
-                            void handleDelete(
+                            void handleUploadToXrpRedVision(
                               record
                             );
                           }}
-                          className="rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
+                          disabled={
+                            uploadingEmotionName !== null
+                          }
+                          className="w-full rounded-lg bg-purple-600 px-3 py-2 text-sm font-semibold text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          Delete
+                          {uploadingEmotionName ===
+                          record.uniqueName
+                            ? "Uploading to XRP..."
+                            : "Upload to XRP Red Vision"}
                         </button>
+
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleEdit(
+                                record
+                              );
+                            }}
+                            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800"
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void handleDelete(
+                                record
+                              );
+                            }}
+                            className="rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     </article>
                   )

@@ -216,6 +216,7 @@ function setupEmotionGenerator() {
     "redVisionEmotionDisplay = (",
     "    RedVisionEmotionDisplay(",
     '        sheets_directory="/emotion_sheets_192",',
+    '        custom_sheets_directory="/emotion_sheets_custom",',
     "        strict_assets=False,",
     `        cache_capacity=${MAX_RED_VISION_PRELOADS},`,
     "        debug=False,",
@@ -806,7 +807,7 @@ pythonGenerator.forBlock[
             "FPS"
           )
         )
-      : catalogEntry.defaultFps;
+      : null;
 
   const minTimeMode =
     block.getFieldValue(
@@ -839,7 +840,7 @@ pythonGenerator.forBlock[
 
   const repeatMode =
     rawRepeatMode === "DEFAULT"
-      ? catalogEntry.repeatMode
+      ? null
       : rawRepeatMode;
 
   const repeatCount =
