@@ -41,27 +41,37 @@ type BlocklyDropdownOption = [
 const OFFICIAL_EMOTIONS:
   BlocklyEmotionEntry[] =
     OFFICIAL_EMOTION_DEFINITIONS.map(
-      (emotion) => ({
-        uniqueName:
-          emotion.uniqueName,
+      (emotion) => {
+        const shouldUseSmoothDashboardDefaults =
+          emotion.uniqueName === "happy" ||
+          emotion.uniqueName === "sad";
 
-        displayName:
-          emotion.displayName,
+        return {
+          uniqueName:
+            emotion.uniqueName,
 
-        emotionId:
-          emotion.id,
+          displayName:
+            emotion.displayName,
 
-        defaultFps:
-          emotion.defaultFps,
+          emotionId:
+            emotion.id,
 
-        repeatMode:
-          emotion.repeatMode,
+          defaultFps:
+            shouldUseSmoothDashboardDefaults
+              ? 10
+              : emotion.defaultFps,
 
-        repeatCount:
-          emotion.repeatCount,
+          repeatMode:
+            shouldUseSmoothDashboardDefaults
+              ? "ping_pong"
+              : emotion.repeatMode,
 
-        isCustom: false,
-      })
+          repeatCount:
+            emotion.repeatCount,
+
+          isCustom: false,
+        };
+      }
     );
 
 

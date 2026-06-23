@@ -33,6 +33,14 @@ import type {
 import EmotionSpritePreview from
   "./EmotionSpritePreview";
 
+import {
+  CUSTOM_EMOTION_FRAME_SIZE_OPTIONS,
+  type CustomEmotionFitMode,
+  type CustomEmotionSourceMode,
+  type CustomEmotionTargetFrameSize,
+  processCustomEmotionImage,
+} from "./customEmotionImageProcessor";
+
 const REPEAT_MODE_HELP:
   Record<
     CustomEmotionRepeatMode,
@@ -105,6 +113,46 @@ function StoredEmotionPreview({
   );
 }
 
+
+
+function clampInteger(
+  value: number,
+  minimum: number,
+  maximum: number,
+  fallback: number
+): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  const rounded =
+    Math.round(value);
+
+  return Math.min(
+    maximum,
+    Math.max(
+      minimum,
+      rounded
+    )
+  );
+}
+
+
+function isSupportedImageFile(
+  file: File
+): boolean {
+  if (
+    file.type.startsWith(
+      "image/"
+    )
+  ) {
+    return true;
+  }
+
+  return /\.(png|jpe?g|webp)$/i.test(
+    file.name
+  );
+}
 
 
 function normalizeUniqueName(
@@ -227,6 +275,34 @@ function ManageEmotionsDialog({
     spriteFileName,
     setSpriteFileName,
   ] = useState("");
+
+  const [
+    sourceImageFile,
+    setSourceImageFile,
+  ] = useState<File | null>(
+    null
+  );
+
+  const [
+    sourceMode,
+    setSourceMode,
+  ] = useState<
+    CustomEmotionSourceMode
+  >("single_image");
+
+  const [
+    fitMode,
+    setFitMode,
+  ] = useState<
+    CustomEmotionFitMode
+  >("contain");
+
+  const [
+    targetFrameSize,
+    setTargetFrameSize,
+  ] = useState<
+    CustomEmotionTargetFrameSize
+  >(64);
 
   const [
     spriteUrl,
@@ -353,11 +429,14 @@ function ManageEmotionsDialog({
 
         setSpriteBlob(null);
         setSpriteFileName("");
+        setSourceImageFile(null);
+        setSourceMode("single_image");
+        setFitMode("contain");
         setSheetWidth(0);
         setSheetHeight(0);
 
-        setFrameCount(4);
-        setDefaultFps(6);
+        setFrameCount(1);
+        setDefaultFps(8);
 
         setRepeatMode("loop");
         setRepeatCount(3);
@@ -393,6 +472,73 @@ function ManageEmotionsDialog({
     isOpen,
     refreshEmotionList,
     resetForm,
+  ]);
+
+
+  useEffect(() => {
+    if (!sourceImageFile) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function processImage() {
+      try {
+        setErrorMessage("");
+
+        const processed =
+          await processCustomEmotionImage({
+            file: sourceImageFile!,
+            frameCount,
+            sourceMode,
+            fitMode,
+            targetFrameSize,
+            background: "transparent",
+          });
+
+        if (cancelled) {
+          return;
+        }
+
+        setSpriteBlob(
+          processed.spriteBlob
+        );
+
+        setSheetWidth(
+          processed.width
+        );
+
+        setSheetHeight(
+          processed.height
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setSpriteBlob(null);
+        setSheetWidth(0);
+        setSheetHeight(0);
+
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : String(error)
+        );
+      }
+    }
+
+    void processImage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    sourceImageFile,
+    frameCount,
+    sourceMode,
+    fitMode,
+    targetFrameSize,
   ]);
 
 
@@ -494,11 +640,9 @@ function ManageEmotionsDialog({
       return;
     }
 
-    if (
-      file.type !== "image/png"
-    ) {
+    if (!isSupportedImageFile(file)) {
       setErrorMessage(
-        "Select a PNG file exported from Piskel."
+        "Select a valid image file: PNG, JPG, JPEG or WebP."
       );
 
       event.target.value = "";
@@ -507,14 +651,15 @@ function ManageEmotionsDialog({
 
     if (file.size === 0) {
       setErrorMessage(
-        "The selected PNG file is empty."
+        "The selected image file is empty."
       );
 
       event.target.value = "";
       return;
     }
 
-    setSpriteBlob(file);
+    setSourceImageFile(file);
+
     setSpriteFileName(
       file.name
     );
@@ -587,7 +732,7 @@ function ManageEmotionsDialog({
 
     if (!spriteBlob) {
       setErrorMessage(
-        "Select a PNG spritesheet."
+        "Select an image. It will be converted to 64×64 frames automatically."
       );
 
       return;
@@ -598,7 +743,7 @@ function ManageEmotionsDialog({
       sheetHeight <= 0
     ) {
       setErrorMessage(
-        "The PNG dimensions are unavailable."
+        "The processed image dimensions are unavailable."
       );
 
       return;
@@ -621,9 +766,8 @@ function ManageEmotionsDialog({
       sheetWidth % frameCount !== 0
     ) {
       setErrorMessage(
-        "The PNG width must be divisible " +
-        "by the frame count. This MVP " +
-        "expects one horizontal row."
+        "The processed image width must be divisible " +
+        "by the frame count."
       );
 
       return;
@@ -736,6 +880,12 @@ function ManageEmotionsDialog({
       record.spriteBlob
     );
 
+    setSourceImageFile(null);
+    setSourceMode(
+      "horizontal_spritesheet"
+    );
+    setFitMode("contain");
+
     setSpriteFileName(
       `${record.uniqueName}.png`
     );
@@ -833,8 +983,9 @@ function ManageEmotionsDialog({
             </h1>
 
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Import horizontal PNG spritesheets
-              exported from Piskel.
+              Upload any image or horizontal
+              spritesheet. XRPWeb converts it to
+              64×64 frames for the dashboard.
             </p>
           </div>
 
@@ -876,11 +1027,11 @@ function ManageEmotionsDialog({
                   </label>
 
                   <label className="flex flex-col gap-1 text-sm">
-                    PNG spritesheet
+                    Image or spritesheet
 
                     <input
                       type="file"
-                      accept="image/png"
+                      accept="image/png,image/jpeg,image/webp"
                       onChange={
                         handleFileChange
                       }
@@ -909,6 +1060,94 @@ function ManageEmotionsDialog({
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="flex flex-col gap-1 text-sm">
+                  Source type
+
+                  <select
+                    value={sourceMode}
+                    onChange={(event) => {
+                      setSourceMode(
+                        event.target.value as
+                          CustomEmotionSourceMode
+                      );
+                    }}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900"
+                  >
+                    <option value="single_image">
+                      Single image
+                    </option>
+
+                    <option value="horizontal_spritesheet">
+                      Horizontal spritesheet
+                    </option>
+                  </select>
+
+                  <span className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+                    Single image repeats the same
+                    converted frame. Horizontal
+                    spritesheet splits the image into
+                    the selected number of frames.
+                  </span>
+                </label>
+
+                <label className="flex flex-col gap-1 text-sm">
+                  Output frame size
+
+                  <select
+                    value={targetFrameSize}
+                    onChange={(event) => {
+                      setTargetFrameSize(
+                        Number(
+                          event.target.value
+                        ) as
+                          CustomEmotionTargetFrameSize
+                      );
+                    }}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900"
+                  >
+                    {CUSTOM_EMOTION_FRAME_SIZE_OPTIONS.map(
+                      (size) => (
+                        <option
+                          key={size}
+                          value={size}
+                        >
+                          {size}×{size}
+                        </option>
+                      )
+                    )}
+                  </select>
+
+                  <span className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+                    64×64 is lightest. 128×128 gives
+                    more detail. 192×192 matches the
+                    Red Vision face size, but it is
+                    stored for dashboard use only.
+                  </span>
+                </label>
+
+                <label className="flex flex-col gap-1 text-sm">
+                  Fit mode
+
+                  <select
+                    value={fitMode}
+                    onChange={(event) => {
+                      setFitMode(
+                        event.target.value as
+                          CustomEmotionFitMode
+                      );
+                    }}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900"
+                  >
+                    <option value="contain">
+                      Fit inside frame
+                    </option>
+
+                    <option value="cover">
+                      Fill frame crop
+                    </option>
+                  </select>
+                </label>
+
+                <label className="flex flex-col gap-1 text-sm">
                   Frame count
 
                   <input
@@ -919,8 +1158,13 @@ function ManageEmotionsDialog({
                     value={frameCount}
                     onChange={(event) => {
                       setFrameCount(
-                        Number(
-                          event.target.value
+                        clampInteger(
+                          Number(
+                            event.target.value
+                          ),
+                          1,
+                          16,
+                          1
                         )
                       );
                     }}
@@ -940,8 +1184,13 @@ function ManageEmotionsDialog({
                     value={defaultFps}
                     onChange={(event) => {
                       setDefaultFps(
-                        Number(
-                          event.target.value
+                        clampInteger(
+                          Number(
+                            event.target.value
+                          ),
+                          1,
+                          60,
+                          8
                         )
                       );
                     }}
@@ -1020,6 +1269,11 @@ function ManageEmotionsDialog({
                 </div>
 
                 <div>
+                  Output frame size:{" "}
+                  {targetFrameSize} × {targetFrameSize}
+                </div>
+
+                <div>
                   Calculated frame size:{" "}
                   {calculatedFrameWidth > 0
                     ? `${calculatedFrameWidth} × ${calculatedFrameHeight}`
@@ -1027,8 +1281,9 @@ function ManageEmotionsDialog({
                 </div>
 
                 <div className="mt-1 text-xs text-slate-500">
-                  For this MVP, frames must be
-                  arranged in one horizontal row.
+                  The saved sprite is always
+                  processed as 64×64 frames in one
+                  horizontal row.
                 </div>
               </div>
             </section>
@@ -1232,16 +1487,6 @@ function ManageEmotionsDialog({
                           {
                             record.displayName
                           }
-                        </div>
-
-                        <div className="font-semibold">
-                          {record.displayName}
-                        </div>
-
-                        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          {record.frameCount} frames ·{" "}
-                          {record.defaultFps} FPS ·{" "}
-                          {record.repeatMode}
                         </div>
 
                         <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">

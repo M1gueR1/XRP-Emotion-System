@@ -30,6 +30,7 @@ import {
 
 
 const DISPLAY_SCALE = 3;
+const MAX_FACE_DISPLAY_SIZE = 192;
 
 const REPEAT_DEFAULT = 0;
 const REPEAT_ONCE = 1;
@@ -658,27 +659,38 @@ const repeatCount =
       sequencePosition
     ] ?? 0;
 
+  const visualScale =
+    Math.min(
+      DISPLAY_SCALE,
+      MAX_FACE_DISPLAY_SIZE /
+        Math.max(
+          config.frameWidth,
+          config.frameHeight,
+          1
+        )
+    );
+
   const faceWidth =
     config.frameWidth *
-    DISPLAY_SCALE;
+    visualScale;
 
   const faceHeight =
     config.frameHeight *
-    DISPLAY_SCALE;
+    visualScale;
 
   const sheetWidth =
     config.frameWidth *
     config.frameCount *
-    DISPLAY_SCALE;
+    visualScale;
 
   const sheetHeight =
     config.frameHeight *
-    DISPLAY_SCALE;
+    visualScale;
 
   const backgroundX =
     currentFrameIndex *
     config.frameWidth *
-    DISPLAY_SCALE;
+    visualScale;
 
   const repeatLabel = (() => {
     switch (repeatMode) {

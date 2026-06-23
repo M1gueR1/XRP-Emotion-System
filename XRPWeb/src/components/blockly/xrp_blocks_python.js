@@ -806,7 +806,7 @@ pythonGenerator.forBlock[
             "FPS"
           )
         )
-      : null;
+      : catalogEntry.defaultFps;
 
   const minTimeMode =
     block.getFieldValue(
@@ -839,7 +839,7 @@ pythonGenerator.forBlock[
 
   const repeatMode =
     rawRepeatMode === "DEFAULT"
-      ? null
+      ? catalogEntry.repeatMode
       : rawRepeatMode;
 
   const repeatCount =
