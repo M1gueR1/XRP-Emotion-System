@@ -823,7 +823,7 @@ pythonGenerator.forBlock[
         )
       : null;
 
-  const frameSubset =
+  let frameSubset =
     emotionFrameTuple(
       block.getFieldValue(
         "FRAME_MODE"
@@ -832,6 +832,26 @@ pythonGenerator.forBlock[
         "FRAME_SUBSET"
       )
     );
+
+  /*
+   * Red Vision custom uploads are intentionally
+   * stored as one static 192x192 frame on the XRP.
+   * However, official emotions such as happy and sad
+   * must continue to use their full built-in sheets.
+   *
+   * This guard prevents an accidentally persisted
+   * one-frame Blockly subset from making official
+   * Red Vision animations look static.
+   */
+  const isOfficialEmotion =
+    emotionId < 128;
+
+  if (
+    isOfficialEmotion &&
+    frameSubset === "(0,)"
+  ) {
+    frameSubset = "None";
+  }
 
   const rawRepeatMode =
     block.getFieldValue(

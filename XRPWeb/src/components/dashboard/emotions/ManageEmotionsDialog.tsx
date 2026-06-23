@@ -38,6 +38,7 @@ import {
 } from "./redVisionSheetProcessor";
 
 import {
+  releaseExistingUsbConnectionForRedVisionUpload,
   uploadCustomEmotionToRedVision,
 } from "./xrpRedVisionUploadService";
 
@@ -1015,6 +1016,37 @@ function ManageEmotionsDialog({
     };
 
 
+  const handleDisconnectXrpUsb =
+    async () => {
+      setErrorMessage("");
+      setStatusMessage("");
+      setUploadProgressMessage(
+        "Disconnecting XRP USB..."
+      );
+
+      try {
+        const released =
+          await releaseExistingUsbConnectionForRedVisionUpload();
+
+        setUploadProgressMessage("");
+
+        setStatusMessage(
+          released
+            ? "XRP USB disconnected."
+            : "No active XRP USB connection to disconnect."
+        );
+      } catch (error) {
+        setUploadProgressMessage("");
+
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : String(error)
+        );
+      }
+    };
+
+
   const handleDelete = async (
     record:
       CustomEmotionRecord
@@ -1555,6 +1587,19 @@ function ManageEmotionsDialog({
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 Stored locally in this browser.
               </p>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void handleDisconnectXrpUsb();
+                }}
+                disabled={
+                  uploadingEmotionName !== null
+                }
+                className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Disconnect XRP USB
+              </button>
             </div>
 
             {customEmotions.length === 0 ? (

@@ -315,13 +315,71 @@ export class USBConnection extends Connection {
 
     /**
      * disconnection - disconnect the USB connection
+     *
+     * This must release the reader and writer locks
+     * before closing the Web Serial port. Otherwise,
+     * another feature, such as the Red Vision custom
+     * image uploader, may fail with:
+     *
+     *   Failed to execute 'open' on 'SerialPort':
+     *   The port is already open.
      */
     public async disconnect(): Promise<void> {
-        if (this.port) {
-            await this.port.close();
-            this.port = undefined;
-            this.connLogger.debug('USB connection closed.');
+        this.connectionStates =
+            ConnectionState.Disconnected;
+
+        if (this.reader != undefined) {
+            try {
+                await this.reader.cancel();
+            } catch (error) {
+                this.connLogger.debug(
+                    'USB reader cancel failed or was already cancelled.',
+                );
+            }
+
+            try {
+                this.reader.releaseLock();
+            } catch (error) {
+                this.connLogger.debug(
+                    'USB reader lock was already released.',
+                );
+            }
+
+            this.reader = undefined;
         }
+
+        if (this.writer != undefined) {
+            try {
+                this.writer.releaseLock();
+            } catch (error) {
+                this.connLogger.debug(
+                    'USB writer lock was already released.',
+                );
+            }
+
+            this.writer = undefined;
+        }
+
+        if (this.port != undefined) {
+            try {
+                await this.port.close();
+            } catch (error) {
+                this.connLogger.debug(
+                    'USB port close failed or was already closed.',
+                );
+            }
+
+            this.port = undefined;
+        }
+
+        this.connLogger.debug(
+            'USB connection fully closed.',
+        );
+
+        this.connMgr?.connectCallback(
+            this.connectionStates,
+            ConnectionType.USB,
+        );
     }
 
     /**

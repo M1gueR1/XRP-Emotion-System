@@ -1,3 +1,9 @@
+import AppMgr from "@/managers/appmgr";
+
+import {
+  ConnectionType,
+} from "@/utils/types";
+
 import type {
   CustomEmotionRecord,
 } from "./customEmotionTypes";
@@ -76,6 +82,8 @@ const CUSTOM_MANIFEST_PATH =
   CUSTOM_SHEETS_DIRECTORY +
   "/manifest.json";
 
+let commandSequenceNumber = 0;
+
 
 function sleep(
   milliseconds: number
@@ -88,6 +96,48 @@ function sleep(
       );
     }
   );
+}
+
+
+export async function
+releaseExistingUsbConnectionForRedVisionUpload():
+  Promise<boolean> {
+  try {
+    const appMgr =
+      AppMgr.getInstance();
+
+    if (
+      appMgr.getConnectionType() !==
+      ConnectionType.USB
+    ) {
+      return false;
+    }
+
+    const connection =
+      appMgr.getConnection();
+
+    if (
+      connection &&
+      connection.isConnected()
+    ) {
+      await connection.disconnect();
+
+      /*
+       * Give Web Serial a short moment to release
+       * the reader/writer locks and close the port.
+       */
+      await sleep(700);
+
+      return true;
+    }
+  } catch (error) {
+    console.warn(
+      "Could not release existing XRP USB connection:",
+      error
+    );
+  }
+
+  return false;
 }
 
 
@@ -237,6 +287,88 @@ async function readUntilPrompt(
 }
 
 
+async function readUntilText(
+  reader:
+    ReadableStreamDefaultReader<
+      Uint8Array
+    >,
+  targetText: string,
+  timeoutMs = 6000
+): Promise<string> {
+  const decoder =
+    new TextDecoder();
+
+  let output = "";
+
+  const startedAt =
+    Date.now();
+
+  while (
+    Date.now() - startedAt <
+    timeoutMs
+  ) {
+    const remaining =
+      timeoutMs -
+      (
+        Date.now() -
+        startedAt
+      );
+
+    const result =
+      await Promise.race([
+        reader.read(),
+        sleep(
+          Math.min(
+            250,
+            Math.max(
+              remaining,
+              1
+            )
+          )
+        ).then(
+          () => "timeout" as const
+        ),
+      ]);
+
+    if (result === "timeout") {
+      if (
+        output.includes(
+          targetText
+        )
+      ) {
+        return output;
+      }
+
+      continue;
+    }
+
+    if (result.done) {
+      return output;
+    }
+
+    output += decoder.decode(
+      result.value,
+      {
+        stream: true,
+      }
+    );
+
+    if (
+      output.includes(
+        targetText
+      )
+    ) {
+      return output;
+    }
+  }
+
+  throw new Error(
+    "Timed out waiting for XRP response: " +
+      targetText
+  );
+}
+
+
 async function sendCommand(
   writer:
     WritableStreamDefaultWriter<
@@ -252,15 +384,38 @@ async function sendCommand(
   const encoder =
     new TextEncoder();
 
+  commandSequenceNumber += 1;
+
+  const marker =
+    `__XRP_CMD_DONE_${commandSequenceNumber}__`;
+
+  /*
+   * Use a marker so a stale REPL prompt cannot be
+   * mistaken for the end of the command. This makes
+   * the final UPLOAD_OK confirmation reliable.
+   */
+  const wrappedCommand =
+    (
+      "exec(" +
+      pythonStringLiteral(
+        command +
+          "\nprint(" +
+          pythonStringLiteral(marker) +
+          ")"
+      ) +
+      ")"
+    );
+
   await writer.write(
     encoder.encode(
-      command + "\r\n"
+      wrappedCommand + "\r\n"
     )
   );
 
   const output =
-    await readUntilPrompt(
+    await readUntilText(
       reader,
+      marker,
       timeoutMs
     );
 
@@ -271,7 +426,7 @@ async function sendCommand(
   ) {
     throw new Error(
       "The XRP returned a MicroPython error while uploading:\n" +
-        output.slice(-1200)
+        output.slice(-1600)
     );
   }
 
@@ -466,6 +621,16 @@ uploadCustomEmotionToRedVision(
   report({
     stage: "connecting",
     message:
+      "Releasing existing XRP USB connection...",
+    sentBytes: 0,
+    totalBytes,
+  });
+
+  await releaseExistingUsbConnectionForRedVisionUpload();
+
+  report({
+    stage: "connecting",
+    message:
       "Select the XRP USB serial port...",
     sentBytes: 0,
     totalBytes,
@@ -478,9 +643,28 @@ uploadCustomEmotionToRedVision(
   const port =
     await navigatorWithSerial.serial!.requestPort();
 
-  await port.open({
-    baudRate,
-  });
+  try {
+    await port.open({
+      baudRate,
+    });
+  } catch (error) {
+    const errorName =
+      error instanceof DOMException
+        ? error.name
+        : "";
+
+    if (
+      errorName === "InvalidStateError"
+    ) {
+      throw new Error(
+        "The XRP USB port is already open. " +
+          "Click Disconnect XRP USB, close other serial tools " +
+          "such as mpremote or Thonny, and try again."
+      );
+    }
+
+    throw error;
+  }
 
   if (
     !port.readable ||
@@ -649,7 +833,7 @@ uploadCustomEmotionToRedVision(
         makeManifestWriteCommand(
           emotionName
         ),
-        12000
+        20000
       );
 
     if (
@@ -657,7 +841,8 @@ uploadCustomEmotionToRedVision(
     ) {
       throw new Error(
         "Upload finished, but the XRP did not confirm UPLOAD_OK. " +
-          "Check /emotion_sheets_custom for a .png.tmp file."
+          "Check /emotion_sheets_custom for a .png.tmp file, " +
+          "then run finish_redvision_upload.py if needed."
       );
     }
 
