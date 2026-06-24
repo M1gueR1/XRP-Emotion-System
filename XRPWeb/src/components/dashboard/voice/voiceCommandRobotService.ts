@@ -14,6 +14,7 @@ const VOICE_RUNTIME_COMMANDS: Record<
 > = {
   turn_happy: "V:H",
   turn_sad: "V:S",
+  turn_excited: "V:E",
   turn_right: "V:R",
   turn_left: "V:L",
 };

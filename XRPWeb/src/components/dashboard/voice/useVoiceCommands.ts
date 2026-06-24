@@ -68,6 +68,7 @@ export type VoiceCommandAction =
   | "turn_left"
   | "turn_happy"
   | "turn_sad"
+  | "turn_excited"
   | "unknown";
 
 
@@ -119,8 +120,35 @@ function normalizeTranscript(
   return transcript
     .trim()
     .toLowerCase()
-    .replace(/[.,!?]/g, "")
+    .replace(/[’']/g, "")
+    .replace(/[^a-z0-9áéíóúñü\s]/g, " ")
     .replace(/\s+/g, " ");
+}
+
+
+function hasAnyToken(
+  tokens: Set<string>,
+  words: string[]
+): boolean {
+  return words.some((word) =>
+    tokens.has(word)
+  );
+}
+
+
+function scoreTokens(
+  tokens: Set<string>,
+  words: string[]
+): number {
+  let score = 0;
+
+  for (const word of words) {
+    if (tokens.has(word)) {
+      score += 1;
+    }
+  }
+
+  return score;
 }
 
 
@@ -132,9 +160,30 @@ export function classifyVoiceCommand(
       transcript
     );
 
+  const tokenList =
+    normalized
+      .split(" ")
+      .filter(Boolean);
+
+  const tokens =
+    new Set(tokenList);
+
   let action:
     VoiceCommandAction =
       "unknown";
+
+  let confidenceLabel =
+    "No matching command";
+
+  /*
+   * Order matters:
+   * - Direction commands first.
+   * - Direct emotion commands next.
+   * - Phrase/intention commands after that.
+   *
+   * We use phrase matching + token scoring so the user
+   * does not need to say the exact full sentence.
+   */
 
   if (
     normalized.includes(
@@ -152,6 +201,7 @@ export function classifyVoiceCommand(
     )
   ) {
     action = "turn_right";
+    confidenceLabel = "Direct direction command";
   } else if (
     normalized.includes(
       "turn to the left"
@@ -168,19 +218,7 @@ export function classifyVoiceCommand(
     )
   ) {
     action = "turn_left";
-  } else if (
-    normalized.includes(
-      "turn happy"
-    ) ||
-    normalized.includes(
-      "be happy"
-    ) ||
-    normalized === "happy" ||
-    normalized.includes(
-      "feliz"
-    )
-  ) {
-    action = "turn_happy";
+    confidenceLabel = "Direct direction command";
   } else if (
     normalized.includes(
       "turn sad"
@@ -194,6 +232,129 @@ export function classifyVoiceCommand(
     )
   ) {
     action = "turn_sad";
+    confidenceLabel = "Direct emotion command";
+  } else if (
+    normalized.includes(
+      "turn happy"
+    ) ||
+    normalized.includes(
+      "be happy"
+    ) ||
+    normalized === "happy" ||
+    normalized.includes(
+      "feliz"
+    )
+  ) {
+    action = "turn_happy";
+    confidenceLabel = "Direct emotion command";
+  } else if (
+    normalized.includes(
+      "turn excited"
+    ) ||
+    normalized.includes(
+      "be excited"
+    ) ||
+    normalized === "excited" ||
+    normalized.includes(
+      "emocionado"
+    )
+  ) {
+    action = "turn_excited";
+    confidenceLabel = "Direct emotion command";
+  } else {
+    const readyWords = [
+      "are",
+      "you",
+      "ready",
+      "for",
+      "today",
+      "listo",
+      "lista",
+      "hoy",
+    ];
+
+    const readyScore =
+      scoreTokens(
+        tokens,
+        readyWords
+      );
+
+    const greetingWords = [
+      "hi",
+      "hello",
+      "hey",
+      "xrp",
+      "how",
+      "are",
+      "you",
+      "doing",
+      "whats",
+      "what",
+      "up",
+      "hola",
+      "como",
+      "estas",
+    ];
+
+    const greetingScore =
+      scoreTokens(
+        tokens,
+        greetingWords
+      );
+
+    const looksLikeReady =
+      normalized.includes(
+        "are you ready"
+      ) ||
+      normalized.includes(
+        "ready for today"
+      ) ||
+      (
+        tokens.has("ready") &&
+        readyScore >= 2
+      ) ||
+      readyScore >= 3;
+
+    const looksLikeGreeting =
+      normalized.includes(
+        "hello xrp"
+      ) ||
+      normalized.includes(
+        "hi xrp"
+      ) ||
+      normalized.includes(
+        "hey xrp"
+      ) ||
+      normalized.includes(
+        "how are you"
+      ) ||
+      normalized.includes(
+        "whats up"
+      ) ||
+      normalized.includes(
+        "what up"
+      ) ||
+      tokens.has("hello") ||
+      tokens.has("hi") ||
+      tokens.has("hey") ||
+      (
+        hasAnyToken(
+          tokens,
+          ["xrp", "you"]
+        ) &&
+        greetingScore >= 3
+      ) ||
+      greetingScore >= 4;
+
+    if (looksLikeReady) {
+      action = "turn_excited";
+      confidenceLabel =
+        `Phrase matched: ready/excited (${readyScore} keyword matches)`;
+    } else if (looksLikeGreeting) {
+      action = "turn_happy";
+      confidenceLabel =
+        `Phrase matched: greeting/happy (${greetingScore} keyword matches)`;
+    }
   }
 
   return {
@@ -202,10 +363,7 @@ export function classifyVoiceCommand(
 
     action,
 
-    confidenceLabel:
-      action === "unknown"
-        ? "No matching command"
-        : "Command recognized",
+    confidenceLabel,
   };
 }
 
@@ -302,7 +460,15 @@ export function useVoiceCommands(
         new RecognitionConstructor();
 
       recognition.continuous = true;
-      recognition.interimResults = false;
+
+      /*
+       * Interim results reduce latency:
+       * the phrase can trigger as soon as enough
+       * words are recognized, without waiting for
+       * the full sentence to finish.
+       */
+      recognition.interimResults = true;
+
       recognition.lang = "en-US";
       recognition.maxAlternatives = 1;
 
@@ -363,7 +529,7 @@ export function useVoiceCommands(
 
         const cooldownMs =
           optionsRef.current.cooldownMs ??
-          800;
+          700;
 
         const isDuplicateTooSoon =
           lastSentActionRef.current ===

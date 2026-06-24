@@ -1782,6 +1782,15 @@ Blockly.Blocks[
 // Add these blocks near the other XRP block definitions.
 // ---------------------------------------------------------
 
+const XRP_VOICE_COMMAND_DROPDOWN = [
+  ["turn right", "turn_right"],
+  ["turn left", "turn_left"],
+  ["turn happy", "turn_happy"],
+  ["turn sad", "turn_sad"],
+  ["turn excited", "turn_excited"],
+];
+
+
 Blockly.Blocks["xrp_voice_update"] = {
   init: function () {
     this.appendDummyInput()
@@ -1803,10 +1812,9 @@ Blockly.Blocks["xrp_voice_if_command"] = {
     this.appendDummyInput()
       .appendField("if voice command is")
       .appendField(
-        new Blockly.FieldDropdown([
-          ["turn right", "turn_right"],
-          ["turn left", "turn_left"],
-        ]),
+        new Blockly.FieldDropdown(
+          XRP_VOICE_COMMAND_DROPDOWN
+        ),
         "COMMAND"
       );
 
@@ -1830,10 +1838,9 @@ Blockly.Blocks["xrp_voice_command_is"] = {
     this.appendDummyInput()
       .appendField("voice command is")
       .appendField(
-        new Blockly.FieldDropdown([
-          ["turn right", "turn_right"],
-          ["turn left", "turn_left"],
-        ]),
+        new Blockly.FieldDropdown(
+          XRP_VOICE_COMMAND_DROPDOWN
+        ),
         "COMMAND"
       );
 

@@ -46,6 +46,7 @@ const REPEAT_COUNT = 3;
 const REPEAT_PING_PONG = 4;
 
 const VOICE_HAPPY_EMOTION_ID = 1;
+const VOICE_EXCITED_EMOTION_ID = 3;
 const VOICE_SAD_EMOTION_ID = 9;
 
 
@@ -665,9 +666,45 @@ const repeatCount =
   const handleDashboardVoiceCommand =
     async (action: string): Promise<void> => {
       if (action === "turn_happy") {
+        /*
+         * Dashboard changes immediately, so the user
+         * gets instant feedback and sounds can play.
+         *
+         * We also try to forward the tiny V:H command
+         * to the XRP. If there is no active XRP program
+         * listening, the dashboard still works.
+         */
         applyDashboardVoiceEmotion(
           VOICE_HAPPY_EMOTION_ID
         );
+
+        void sendVoiceRuntimeCommandToXrp(
+          action
+        ).catch(() => {
+          /*
+           * Ignore for happy/sad because dashboard
+           * preview should work even when the XRP is
+           * not connected or no program is listening.
+           */
+        });
+
+        return;
+      }
+
+      if (action === "turn_excited") {
+        applyDashboardVoiceEmotion(
+          VOICE_EXCITED_EMOTION_ID
+        );
+
+        void sendVoiceRuntimeCommandToXrp(
+          action
+        ).catch(() => {
+          /*
+           * Ignore for excited because dashboard
+           * preview should work even when the XRP is
+           * not connected or no program is listening.
+           */
+        });
 
         return;
       }
@@ -676,6 +713,16 @@ const repeatCount =
         applyDashboardVoiceEmotion(
           VOICE_SAD_EMOTION_ID
         );
+
+        void sendVoiceRuntimeCommandToXrp(
+          action
+        ).catch(() => {
+          /*
+           * Ignore for happy/sad because dashboard
+           * preview should work even when the XRP is
+           * not connected or no program is listening.
+           */
+        });
 
         return;
       }

@@ -15,6 +15,7 @@ class VoiceCommandReceiver:
 
       V:H -> turn_happy
       V:S -> turn_sad
+      V:E -> turn_excited
       V:R -> turn_right
       V:L -> turn_left
 
@@ -24,13 +25,14 @@ class VoiceCommandReceiver:
     TOKEN_MAP = (
         ("V:H", "turn_happy"),
         ("V:S", "turn_sad"),
+        ("V:E", "turn_excited"),
         ("V:R", "turn_right"),
         ("V:L", "turn_left"),
     )
 
     def __init__(
         self,
-        max_buffer_length=80,
+        max_buffer_length=100,
     ):
         self._buffer = ""
         self._queue = []

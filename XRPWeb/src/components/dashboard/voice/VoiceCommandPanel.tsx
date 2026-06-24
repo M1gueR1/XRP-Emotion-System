@@ -33,6 +33,9 @@ function actionLabel(
     case "turn_sad":
       return "Turn sad";
 
+    case "turn_excited":
+      return "Turn excited";
+
     case "unknown":
       return "Unknown command";
 
@@ -65,7 +68,7 @@ function VoiceCommandPanel({
     startListening,
     stopListening,
   } = useVoiceCommands({
-    cooldownMs: 800,
+    cooldownMs: 700,
 
     onCommand: async (result) => {
       setCommandError("");
@@ -108,8 +111,9 @@ function VoiceCommandPanel({
           </div>
 
           <div className="text-xs text-slate-500 dark:text-slate-400">
-            Say: turn right, turn left,
-            turn happy, or turn sad.
+            Try: Hello XRP, What&apos;s up,
+            Are you ready for today, turn right,
+            turn left, turn happy, turn sad.
           </div>
         </div>
 
