@@ -23,24 +23,18 @@ function actionLabel(
   switch (action) {
     case "turn_right":
       return "Turn right";
-
     case "turn_left":
       return "Turn left";
-
     case "turn_happy":
       return "Turn happy";
-
     case "turn_sad":
       return "Turn sad";
-
     case "turn_excited":
       return "Turn excited";
-
     case "unknown":
-      return "Unknown command";
-
+      return "Unknown";
     default:
-      return "None yet";
+      return "—";
   }
 }
 
@@ -48,11 +42,6 @@ function actionLabel(
 function VoiceCommandPanel({
   onCommand,
 }: VoiceCommandPanelProps) {
-  const [
-    commandStatus,
-    setCommandStatus,
-  ] = useState("");
-
   const [
     commandError,
     setCommandError,
@@ -63,7 +52,6 @@ function VoiceCommandPanel({
     isListening,
     lastTranscript,
     lastAction,
-    lastResult,
     errorMessage,
     startListening,
     stopListening,
@@ -73,26 +61,12 @@ function VoiceCommandPanel({
     onCommand: async (result) => {
       setCommandError("");
 
-      setCommandStatus(
-        `Running ${actionLabel(
-          result.action
-        )}...`
-      );
-
       try {
         await onCommand?.(
           result.action,
           result
         );
-
-        setCommandStatus(
-          `Handled ${actionLabel(
-            result.action
-          )}.`
-        );
       } catch (error) {
-        setCommandStatus("");
-
         setCommandError(
           error instanceof Error
             ? error.message
@@ -103,20 +77,8 @@ function VoiceCommandPanel({
   });
 
   return (
-    <div className="w-full rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-sm font-bold text-slate-900 dark:text-white">
-            Voice commands
-          </div>
-
-          <div className="text-xs text-slate-500 dark:text-slate-400">
-            Try: Hello XRP, What&apos;s up,
-            Are you ready for today, turn right,
-            turn left, turn happy, turn sad.
-          </div>
-        </div>
-
+    <div className="w-full rounded-xl border border-slate-200 p-2 dark:border-slate-700">
+      <div className="flex items-center gap-2">
         <button
           type="button"
           disabled={!isSupported}
@@ -128,70 +90,50 @@ function VoiceCommandPanel({
             }
           }}
           className={[
-            "rounded-lg px-3 py-2",
-            "text-sm font-semibold",
-            "transition",
+            "shrink-0 rounded-lg px-3 py-2",
+            "text-xs font-bold",
+            "text-white shadow-sm transition",
             isListening
-              ? "bg-red-600 text-white hover:bg-red-700"
-              : "bg-emerald-600 text-white hover:bg-emerald-700",
+              ? "bg-red-600 hover:bg-red-700"
+              : "bg-blue-600 hover:bg-blue-700",
             !isSupported
               ? "cursor-not-allowed opacity-50"
               : "",
           ].join(" ")}
         >
           {isListening
-            ? "Stop listening"
+            ? "Stop voice"
             : "Enable voice"}
         </button>
+
+        <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 text-xs">
+          <div className="min-w-0 truncate rounded-lg bg-slate-100 px-2 py-1.5 dark:bg-slate-900">
+            <span className="text-slate-500 dark:text-slate-400">
+              Last heard:
+            </span>{" "}
+            <span className="font-semibold text-slate-800 dark:text-slate-100">
+              {lastTranscript || "—"}
+            </span>
+          </div>
+
+          <div className="min-w-0 truncate rounded-lg bg-slate-100 px-2 py-1.5 dark:bg-slate-900">
+            <span className="text-slate-500 dark:text-slate-400">
+              Action:
+            </span>{" "}
+            <span className="font-semibold text-slate-800 dark:text-slate-100">
+              {actionLabel(
+                lastAction
+              )}
+            </span>
+          </div>
+        </div>
       </div>
 
-      <div className="mt-3 grid gap-2 rounded-lg bg-slate-100 p-3 text-xs dark:bg-slate-900">
-        <div>
-          Status:{" "}
-          <span className="font-semibold">
-            {isListening
-              ? "Listening..."
-              : isSupported
-                ? "Ready"
-                : "Not supported"}
-          </span>
+      {(errorMessage || commandError) && (
+        <div className="mt-2 rounded bg-red-50 px-2 py-1 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
+          {errorMessage || commandError}
         </div>
-
-        <div>
-          Last heard:{" "}
-          <span className="font-semibold">
-            {lastTranscript ||
-              "Nothing yet"}
-          </span>
-        </div>
-
-        <div>
-          Detected action:{" "}
-          <span className="font-semibold">
-            {actionLabel(
-              lastAction
-            )}
-          </span>
-        </div>
-
-        {lastResult && (
-          <div className="text-slate-500 dark:text-slate-400">
-            {lastResult.confidenceLabel}
-          </div>
-        )}
-
-        {commandStatus && (
-          <div className="rounded bg-emerald-50 px-2 py-1 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-            {commandStatus}
-          </div>
-        )}
-
-        {(errorMessage || commandError) && (
-          <div className="rounded bg-red-50 px-2 py-1 text-red-700 dark:bg-red-950 dark:text-red-300">
-            {errorMessage || commandError}
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

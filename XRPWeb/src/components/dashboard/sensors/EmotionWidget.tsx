@@ -170,7 +170,7 @@ const lastSoundEventRef =
   ] = useState(0);
 
   const [
-    animationFinished,
+    ,
     setAnimationFinished,
   ] = useState(false);
 
@@ -339,9 +339,6 @@ const repeatCount =
   receivedRepeatCount >= 0
     ? receivedRepeatCount
     : catalogRepeatCount;
-
-  const overrideFlags =
-    robotEmotion?.emotionFlags ?? 0;
 
   const emotionNameForSound =
   config.name;
@@ -915,8 +912,8 @@ const repeatCount =
       isConnected={usingRobotData}
       lastUpdated={lastUpdated}
     >
-      <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-3">
-        <div className="flex min-h-52 w-full items-center justify-center overflow-hidden rounded-2xl bg-black shadow-inner">
+      <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-3">
+        <div className="flex min-h-48 w-full items-center justify-center overflow-hidden rounded-2xl bg-black shadow-inner">
           <div
             role="img"
             aria-label={
@@ -997,34 +994,41 @@ const repeatCount =
           }}
         />
 
-        <div className="w-full rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-          <div className="flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                void toggleEmotionSounds();
-              }}
-              className={[
-                "flex-1 rounded-lg px-3 py-2",
-                "text-sm font-semibold",
-                "transition",
-                emotionSoundsEnabled
-                  ? "bg-slate-700 text-white hover:bg-slate-600"
-                  : "bg-blue-600 text-white hover:bg-blue-700",
-              ].join(" ")}
-            >
-              {emotionSoundsEnabled
-                ? "Disable emotion sounds"
-                : "Enable emotion sounds"}
-            </button>
+        <div className="grid w-full grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              void toggleEmotionSounds();
+            }}
+            className={[
+              "rounded-lg px-3 py-2",
+              "text-xs font-semibold",
+              "transition",
+              emotionSoundsEnabled
+                ? "bg-slate-700 text-white hover:bg-slate-600"
+                : "bg-blue-600 text-white hover:bg-blue-700",
+            ].join(" ")}
+          >
+            {emotionSoundsEnabled
+              ? "Disable sounds"
+              : "Enable sounds"}
+          </button>
 
-            <span className="min-w-12 text-right text-xs font-semibold text-slate-500 dark:text-slate-400">
-              {Math.round(
-                emotionSoundVolume * 100
-              )}
-              %
-            </span>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setEmotionManagerOpen(true);
+            }}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Manage custom emotions
+          </button>
+        </div>
+
+        <div className="flex w-full items-center gap-2 rounded-xl border border-slate-200 px-2 py-1.5 dark:border-slate-700">
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            Vol
+          </span>
 
           <input
             type="range"
@@ -1043,29 +1047,22 @@ const repeatCount =
               );
             }}
             aria-label="Emotion sound volume"
-            className="mt-3 w-full disabled:cursor-not-allowed disabled:opacity-40"
+            className="min-w-0 flex-1 disabled:cursor-not-allowed disabled:opacity-40"
           />
 
-          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Sounds play once when the active emotion changes.
-          </div>
-
-          {emotionSoundError && (
-            <div className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
-              {emotionSoundError}
-            </div>
-          )}
+          <span className="w-9 text-right text-xs font-semibold text-slate-500 dark:text-slate-400">
+            {Math.round(
+              emotionSoundVolume * 100
+            )}
+            %
+          </span>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setEmotionManagerOpen(true);
-          }}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-        >
-          Manage custom emotions
-        </button>
+        {emotionSoundError && (
+          <div className="w-full rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
+            {emotionSoundError}
+          </div>
+        )}
 
         <ManageEmotionsDialog
           isOpen={isEmotionManagerOpen}
@@ -1073,32 +1070,6 @@ const repeatCount =
             setEmotionManagerOpen(false);
           }}
         />
-
-        <div className="text-center text-xs text-slate-400">
-          {voiceOverrideActive
-            ? (
-              <>
-                Voice dashboard preview · Generation{" "}
-                {generation} ·{" "}
-                {playbackFps} FPS
-              </>
-            )
-            : usingRobotData
-            ? (
-              <>
-                Robot mode · Generation{" "}
-                {generation} ·{" "}
-                {playbackFps} FPS
-                <br />
-                Flags {overrideFlags} ·
-                Cycles {completedCycles}
-                {animationFinished
-                  ? " · Finished"
-                  : ""}
-              </>
-            )
-            : "Local preview mode"}
-        </div>
       </div>
     </SensorCard>
   );
