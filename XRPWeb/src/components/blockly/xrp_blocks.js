@@ -1776,3 +1776,88 @@ Blockly.Blocks[
     });
   },
 };
+
+// ---------------------------------------------------------
+// Voice commands
+// Add these blocks near the other XRP block definitions.
+// ---------------------------------------------------------
+
+Blockly.Blocks["xrp_voice_update"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("Read voice command");
+
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour("#7c3aed");
+    this.setTooltip(
+      "Reads the latest voice command sent by XRPWeb. Put this once near the top of your loop."
+    );
+    this.setHelpUrl("");
+  },
+};
+
+
+Blockly.Blocks["xrp_voice_if_command"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("if voice command is")
+      .appendField(
+        new Blockly.FieldDropdown([
+          ["turn right", "turn_right"],
+          ["turn left", "turn_left"],
+        ]),
+        "COMMAND"
+      );
+
+    this.appendStatementInput("DO")
+      .setCheck(null)
+      .appendField("do");
+
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour("#7c3aed");
+    this.setTooltip(
+      "Runs the nested blocks if the latest voice command matches."
+    );
+    this.setHelpUrl("");
+  },
+};
+
+
+Blockly.Blocks["xrp_voice_command_is"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("voice command is")
+      .appendField(
+        new Blockly.FieldDropdown([
+          ["turn right", "turn_right"],
+          ["turn left", "turn_left"],
+        ]),
+        "COMMAND"
+      );
+
+    this.setOutput(true, "Boolean");
+    this.setColour("#7c3aed");
+    this.setTooltip(
+      "Returns true when the latest voice command matches."
+    );
+    this.setHelpUrl("");
+  },
+};
+
+
+Blockly.Blocks["xrp_voice_clear"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("Clear voice command");
+
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour("#7c3aed");
+    this.setTooltip(
+      "Clears the current voice command. Usually optional."
+    );
+    this.setHelpUrl("");
+  },
+};

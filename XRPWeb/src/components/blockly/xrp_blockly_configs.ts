@@ -302,7 +302,31 @@ const ToolboxJson = {
                 "type": "xrp_emotion_controls_drivetrain"
                 }
             ]
-            },{
+            },
+                    {
+                "kind": "CATEGORY",
+                "name": "Voice",
+                "colour": "#7c3aed",
+                "contents": [
+                    {
+                        "kind": "BLOCK",
+                        "type": "xrp_voice_update"
+                    },
+                    {
+                        "kind": "BLOCK",
+                        "type": "xrp_voice_if_command"
+                    },
+                    {
+                        "kind": "BLOCK",
+                        "type": "xrp_voice_command_is"
+                    },
+                    {
+                        "kind": "BLOCK",
+                        "type": "xrp_voice_clear"
+                    }
+                ]
+            },
+            {
             "kind": "CATEGORY",
             "name": "Dashboard",
             "colour": "#0080ff", // bright blue

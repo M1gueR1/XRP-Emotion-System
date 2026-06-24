@@ -1376,3 +1376,87 @@ pythonGenerator.forBlock[
   return "";
 };
 
+// ---------------------------------------------------------
+// Voice commands generator
+// Append this near the other pythonGenerator.forBlock entries.
+// ---------------------------------------------------------
+
+function setupVoiceCommandGenerator() {
+  pythonGenerator.definitions_[
+    "import_voice_command_receiver"
+  ] =
+    "from EmotionLib.voice_command_receiver import VoiceCommandReceiver";
+
+  pythonGenerator.definitions_[
+    "voice_command_setup"
+  ] = [
+    "voiceCommandReceiver = VoiceCommandReceiver()",
+    "voiceCommand = None",
+  ].join("\n");
+}
+
+
+pythonGenerator.forBlock[
+  "xrp_voice_update"
+] = function () {
+  setupVoiceCommandGenerator();
+
+  return (
+    "voiceCommand = voiceCommandReceiver.poll()\n"
+  );
+};
+
+
+pythonGenerator.forBlock[
+  "xrp_voice_if_command"
+] = function (block) {
+  setupVoiceCommandGenerator();
+
+  const command =
+    block.getFieldValue(
+      "COMMAND"
+    );
+
+  let branch =
+    pythonGenerator.statementToCode(
+      block,
+      "DO"
+    );
+
+  if (!branch) {
+    branch =
+      pythonGenerator.INDENT +
+      "pass\n";
+  }
+
+  return (
+    `if voiceCommand == "${command}":\n` +
+    branch
+  );
+};
+
+
+pythonGenerator.forBlock[
+  "xrp_voice_command_is"
+] = function (block) {
+  setupVoiceCommandGenerator();
+
+  const command =
+    block.getFieldValue(
+      "COMMAND"
+    );
+
+  return [
+    `voiceCommand == "${command}"`,
+    pythonGenerator.ORDER_RELATIONAL,
+  ];
+};
+
+
+pythonGenerator.forBlock[
+  "xrp_voice_clear"
+] = function () {
+  setupVoiceCommandGenerator();
+
+  return "voiceCommand = None\n";
+};

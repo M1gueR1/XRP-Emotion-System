@@ -18,6 +18,13 @@ import useCustomEmotionCatalog from
 import ManageEmotionsDialog from
   "../emotions/ManageEmotionsDialog";
 
+import VoiceCommandPanel from
+  "../voice/VoiceCommandPanel";
+
+import {
+  sendVoiceRuntimeCommandToXrp,
+} from "../voice/voiceCommandRobotService";
+
 import type {
   EmotionData,
 } from "../utils/sensorParsers";
@@ -37,6 +44,9 @@ const REPEAT_ONCE = 1;
 const REPEAT_LOOP = 2;
 const REPEAT_COUNT = 3;
 const REPEAT_PING_PONG = 4;
+
+const VOICE_HAPPY_EMOTION_ID = 1;
+const VOICE_SAD_EMOTION_ID = 9;
 
 
 
@@ -166,6 +176,21 @@ const lastSoundEventRef =
   const [localPlaying, setLocalPlaying] =
     useState(true);
 
+  const [
+    voiceEmotionId,
+    setVoiceEmotionId,
+  ] = useState<number | null>(
+    null
+  );
+
+  const [
+    voiceEmotionGeneration,
+    setVoiceEmotionGeneration,
+  ] = useState(0);
+
+  const lastRobotEmotionEventRef =
+    useRef<string | null>(null);
+
   const [lastUpdated, setLastUpdated] =
     useState(
       new Date().toISOString()
@@ -200,11 +225,62 @@ const lastSoundEventRef =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /*
+   * Clear the temporary voice dashboard preview as soon
+   * as a real robot emotion event arrives.
+   *
+   * Without this, after saying "turn happy" or "turn sad",
+   * voiceEmotionId stayed set forever and the widget kept
+   * ignoring XPP emotion updates from MicroPython.
+   */
+  useEffect(() => {
+    if (!robotEmotion) {
+      return;
+    }
+
+    const eventKey = [
+      robotEmotion.emotionGeneration,
+      robotEmotion.emotionId,
+      robotEmotion.emotionStatus,
+    ].join(":");
+
+    if (
+      lastRobotEmotionEventRef.current ===
+      null
+    ) {
+      lastRobotEmotionEventRef.current =
+        eventKey;
+
+      return;
+    }
+
+    if (
+      lastRobotEmotionEventRef.current ===
+      eventKey
+    ) {
+      return;
+    }
+
+    lastRobotEmotionEventRef.current =
+      eventKey;
+
+    setVoiceEmotionId(null);
+  }, [
+    robotEmotion?.emotionGeneration,
+    robotEmotion?.emotionId,
+    robotEmotion?.emotionStatus,
+  ]);
+
   const usingRobotData =
     robotEmotion !== null;
 
+  const voiceOverrideActive =
+    voiceEmotionId !== null;
+
   const activeEmotionId =
-  robotEmotion?.emotionId ?? 0;
+    voiceEmotionId ??
+    robotEmotion?.emotionId ??
+    0;
 
   const officialConfig =
   getEmotionById(
@@ -221,9 +297,12 @@ const config =
   officialConfig;
 
   const generation =
-    robotEmotion?.emotionGeneration ?? 0;
+    voiceOverrideActive
+      ? voiceEmotionGeneration
+      : robotEmotion?.emotionGeneration ?? 0;
 
   const playbackFps =
+    !voiceOverrideActive &&
     robotEmotion &&
     robotEmotion.emotionFps > 0
       ? robotEmotion.emotionFps
@@ -234,8 +313,10 @@ const config =
   REPEAT_DEFAULT;
 
 const receivedRepeatMode =
-  robotEmotion?.emotionRepeatMode ??
-  REPEAT_DEFAULT;
+  !voiceOverrideActive
+    ? robotEmotion?.emotionRepeatMode ??
+      REPEAT_DEFAULT
+    : REPEAT_DEFAULT;
 
 const repeatMode =
   receivedRepeatMode !==
@@ -248,8 +329,10 @@ const repeatMode =
   -1;
 
 const receivedRepeatCount =
-  robotEmotion?.emotionRepeatCount ??
-  -1;
+  !voiceOverrideActive
+    ? robotEmotion?.emotionRepeatCount ??
+      -1
+    : -1;
 
 const repeatCount =
   receivedRepeatCount >= 0
@@ -277,6 +360,7 @@ const repeatCount =
     }
 
     if (
+      !voiceOverrideActive &&
       usingRobotData &&
       robotEmotion &&
       robotEmotion
@@ -310,6 +394,7 @@ const repeatCount =
     config,
     robotEmotion,
     usingRobotData,
+    voiceOverrideActive,
   ]);
 
   const playbackSequence =
@@ -353,16 +438,17 @@ const repeatCount =
     ]);
 
   const robotIsPlaying =
+    voiceOverrideActive ||
     robotEmotion?.emotionStatus === 1;
 
   const robotShouldAnimate =
-  robotIsPlaying ||
-  config.name === "idle";
+    voiceOverrideActive ||
+    robotIsPlaying ||
+    config.name === "idle";
 
   useEffect(() => {
     if (
       !emotionSoundsEnabled ||
-      !usingRobotData ||
       !robotIsPlaying
     ) {
       return;
@@ -444,13 +530,14 @@ const repeatCount =
     emotionSoundsEnabled,
     generation,
     robotIsPlaying,
-    usingRobotData,
   ]);
 
   const isPlaying =
-  usingRobotData
-    ? robotShouldAnimate
-    : localPlaying;
+    voiceOverrideActive
+      ? true
+      : usingRobotData
+        ? robotShouldAnimate
+        : localPlaying;
 
   useEffect(() => {
       if (
@@ -554,6 +641,58 @@ const repeatCount =
   ]);
 
 
+  const applyDashboardVoiceEmotion =
+    (emotionId: number): void => {
+      setVoiceEmotionId(
+        emotionId
+      );
+
+      setVoiceEmotionGeneration(
+        (current) => current + 1
+      );
+
+      setLocalPlaying(true);
+      setSequencePosition(0);
+      setCompletedCycles(0);
+      setAnimationFinished(false);
+
+      setLastUpdated(
+        new Date().toISOString()
+      );
+    };
+
+
+  const handleDashboardVoiceCommand =
+    async (action: string): Promise<void> => {
+      if (action === "turn_happy") {
+        applyDashboardVoiceEmotion(
+          VOICE_HAPPY_EMOTION_ID
+        );
+
+        return;
+      }
+
+      if (action === "turn_sad") {
+        applyDashboardVoiceEmotion(
+          VOICE_SAD_EMOTION_ID
+        );
+
+        return;
+      }
+
+      if (
+        action === "turn_right" ||
+        action === "turn_left"
+      ) {
+        await sendVoiceRuntimeCommandToXrp(
+          action
+        );
+
+        return;
+      }
+    };
+
+
   const toggleEmotionSounds =
       async (): Promise<void> => {
         const manager =
@@ -600,10 +739,7 @@ const repeatCount =
         lastSoundEventRef.current =
           `${generation}:${activeEmotionId}`;
 
-        if (
-          usingRobotData &&
-          robotIsPlaying
-        ) {
+        if (robotIsPlaying) {
           if (
             activeSoundMode === "none"
           ) {
@@ -806,6 +942,14 @@ const repeatCount =
           </div>
         )}
 
+        <VoiceCommandPanel
+          onCommand={async (action) => {
+            await handleDashboardVoiceCommand(
+              action
+            );
+          }}
+        />
+
         <div className="w-full rounded-xl border border-slate-200 p-3 dark:border-slate-700">
           <div className="flex items-center justify-between gap-3">
             <button
@@ -884,7 +1028,15 @@ const repeatCount =
         />
 
         <div className="text-center text-xs text-slate-400">
-          {usingRobotData
+          {voiceOverrideActive
+            ? (
+              <>
+                Voice dashboard preview · Generation{" "}
+                {generation} ·{" "}
+                {playbackFps} FPS
+              </>
+            )
+            : usingRobotData
             ? (
               <>
                 Robot mode · Generation{" "}
