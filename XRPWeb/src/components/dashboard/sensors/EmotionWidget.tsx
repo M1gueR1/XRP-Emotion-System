@@ -48,6 +48,7 @@ const REPEAT_PING_PONG = 4;
 const VOICE_HAPPY_EMOTION_ID = 1;
 const VOICE_EXCITED_EMOTION_ID = 3;
 const VOICE_SAD_EMOTION_ID = 9;
+const VOICE_IN_LOVE_EMOTION_ID = 12;
 
 
 
@@ -706,6 +707,24 @@ const repeatCount =
         return;
       }
 
+      if (action === "turn_in_love") {
+        applyDashboardVoiceEmotion(
+          VOICE_IN_LOVE_EMOTION_ID
+        );
+
+        void sendVoiceRuntimeCommandToXrp(
+          action
+        ).catch(() => {
+          /*
+           * Ignore for in-love because dashboard
+           * preview should work even when the XRP is
+           * not connected or no program is listening.
+           */
+        });
+
+        return;
+      }
+
       if (action === "turn_sad") {
         applyDashboardVoiceEmotion(
           VOICE_SAD_EMOTION_ID
@@ -726,7 +745,8 @@ const repeatCount =
 
       if (
         action === "turn_right" ||
-        action === "turn_left"
+        action === "turn_left" ||
+        action === "turn_back"
       ) {
         await sendVoiceRuntimeCommandToXrp(
           action

@@ -10,29 +10,28 @@ class VoiceCommandReceiver:
     """
     Non-blocking voice command receiver.
 
-    XRPWeb sends tiny text tokens while a MicroPython
-    program is already running:
-
       V:H -> turn_happy
       V:S -> turn_sad
       V:E -> turn_excited
+      V:I -> turn_in_love
       V:R -> turn_right
       V:L -> turn_left
-
-    Your running program calls poll() inside its loop.
+      V:B -> turn_back
     """
 
     TOKEN_MAP = (
         ("V:H", "turn_happy"),
         ("V:S", "turn_sad"),
         ("V:E", "turn_excited"),
+        ("V:I", "turn_in_love"),
         ("V:R", "turn_right"),
         ("V:L", "turn_left"),
+        ("V:B", "turn_back"),
     )
 
     def __init__(
         self,
-        max_buffer_length=100,
+        max_buffer_length=120,
     ):
         self._buffer = ""
         self._queue = []
@@ -117,12 +116,6 @@ class VoiceCommandReceiver:
             ]
 
     def poll(self):
-        """
-        Return the next command or None.
-
-        Put this inside your main loop.
-        """
-
         self._read_available()
 
         if not self._queue:

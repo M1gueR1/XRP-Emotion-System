@@ -15,8 +15,10 @@ const VOICE_RUNTIME_COMMANDS: Record<
   turn_happy: "V:H",
   turn_sad: "V:S",
   turn_excited: "V:E",
+  turn_in_love: "V:I",
   turn_right: "V:R",
   turn_left: "V:L",
+  turn_back: "V:B",
 };
 
 
@@ -38,7 +40,7 @@ export async function sendVoiceRuntimeCommandToXrp(
     !connection.isConnected()
   ) {
     throw new Error(
-      "XRP is not connected. Connect the XRP before using movement voice commands."
+      "XRP is not connected. Connect the XRP before using voice commands."
     );
   }
 

@@ -1785,9 +1785,11 @@ Blockly.Blocks[
 const XRP_VOICE_COMMAND_DROPDOWN = [
   ["turn right", "turn_right"],
   ["turn left", "turn_left"],
+  ["move back", "turn_back"],
   ["turn happy", "turn_happy"],
   ["turn sad", "turn_sad"],
   ["turn excited", "turn_excited"],
+  ["turn in love", "turn_in_love"],
 ];
 
 

@@ -15,13 +15,8 @@ type SpeechRecognitionLike = {
   stop: () => void;
   abort: () => void;
 
-  onstart:
-    | (() => void)
-    | null;
-
-  onend:
-    | (() => void)
-    | null;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
 
   onerror:
     | ((
@@ -66,9 +61,11 @@ type WindowWithSpeechRecognition =
 export type VoiceCommandAction =
   | "turn_right"
   | "turn_left"
+  | "turn_back"
   | "turn_happy"
   | "turn_sad"
   | "turn_excited"
+  | "turn_in_love"
   | "unknown";
 
 
@@ -126,16 +123,6 @@ function normalizeTranscript(
 }
 
 
-function hasAnyToken(
-  tokens: Set<string>,
-  words: string[]
-): boolean {
-  return words.some((word) =>
-    tokens.has(word)
-  );
-}
-
-
 function scoreTokens(
   tokens: Set<string>,
   words: string[]
@@ -149,6 +136,16 @@ function scoreTokens(
   }
 
   return score;
+}
+
+
+function hasAnyToken(
+  tokens: Set<string>,
+  words: string[]
+): boolean {
+  return words.some((word) =>
+    tokens.has(word)
+  );
 }
 
 
@@ -175,16 +172,6 @@ export function classifyVoiceCommand(
   let confidenceLabel =
     "No matching command";
 
-  /*
-   * Order matters:
-   * - Direction commands first.
-   * - Direct emotion commands next.
-   * - Phrase/intention commands after that.
-   *
-   * We use phrase matching + token scoring so the user
-   * does not need to say the exact full sentence.
-   */
-
   if (
     normalized.includes(
       "turn to the right"
@@ -201,7 +188,7 @@ export function classifyVoiceCommand(
     )
   ) {
     action = "turn_right";
-    confidenceLabel = "Direct direction command";
+    confidenceLabel = "Direct movement command";
   } else if (
     normalized.includes(
       "turn to the left"
@@ -218,7 +205,39 @@ export function classifyVoiceCommand(
     )
   ) {
     action = "turn_left";
-    confidenceLabel = "Direct direction command";
+    confidenceLabel = "Direct movement command";
+  } else if (
+    normalized.includes(
+      "move back"
+    ) ||
+    normalized.includes(
+      "go back"
+    ) ||
+    normalized.includes(
+      "move backward"
+    ) ||
+    normalized.includes(
+      "back up"
+    ) ||
+    normalized.includes(
+      "turn back"
+    ) ||
+    normalized.includes(
+      "back up"
+    ) ||
+    normalized === "back" ||
+    normalized.includes(
+      "reversa"
+    ) ||
+    normalized.includes(
+      "atrás"
+    ) ||
+    normalized.includes(
+      "atras"
+    )
+  ) {
+    action = "turn_back";
+    confidenceLabel = "Direct movement command";
   } else if (
     normalized.includes(
       "turn sad"
@@ -232,6 +251,25 @@ export function classifyVoiceCommand(
     )
   ) {
     action = "turn_sad";
+    confidenceLabel = "Direct emotion command";
+  } else if (
+    normalized.includes(
+      "turn in love"
+    ) ||
+    normalized.includes(
+      "in love"
+    ) ||
+    normalized.includes(
+      "be in love"
+    ) ||
+    normalized.includes(
+      "enamorado"
+    ) ||
+    normalized.includes(
+      "enamorada"
+    )
+  ) {
+    action = "turn_in_love";
     confidenceLabel = "Direct emotion command";
   } else if (
     normalized.includes(
@@ -279,6 +317,34 @@ export function classifyVoiceCommand(
         readyWords
       );
 
+    const inLoveWords = [
+      "im",
+      "i",
+      "am",
+      "really",
+      "very",
+      "so",
+      "happy",
+      "like",
+      "love",
+      "work",
+      "working",
+      "with",
+      "you",
+      "xrp",
+      "today",
+      "hoy",
+      "estoy",
+      "muy",
+      "feliz",
+    ];
+
+    const inLoveScore =
+      scoreTokens(
+        tokens,
+        inLoveWords
+      );
+
     const greetingWords = [
       "hi",
       "hello",
@@ -315,6 +381,68 @@ export function classifyVoiceCommand(
       ) ||
       readyScore >= 3;
 
+    const looksLikeInLove =
+      normalized.includes(
+        "im happy"
+      ) ||
+      normalized.includes(
+        "i am happy"
+      ) ||
+      normalized.includes(
+        "im really happy"
+      ) ||
+      normalized.includes(
+        "i am really happy"
+      ) ||
+      normalized.includes(
+        "im very happy"
+      ) ||
+      normalized.includes(
+        "i am very happy"
+      ) ||
+      normalized.includes(
+        "i like to work with you"
+      ) ||
+      normalized.includes(
+        "i like working with you"
+      ) ||
+      normalized.includes(
+        "i love working with you"
+      ) ||
+      normalized.includes(
+        "i love to work with you"
+      ) ||
+      normalized.includes(
+        "hoy estoy muy feliz"
+      ) ||
+      normalized.includes(
+        "estoy muy feliz"
+      ) ||
+      (
+        tokens.has("happy") &&
+        inLoveScore >= 2
+      ) ||
+      (
+        tokens.has("like") &&
+        (
+          tokens.has("work") ||
+          tokens.has("working")
+        ) &&
+        tokens.has("you")
+      ) ||
+      (
+        tokens.has("love") &&
+        (
+          tokens.has("work") ||
+          tokens.has("working")
+        ) &&
+        tokens.has("you")
+      ) ||
+      (
+        tokens.has("feliz") &&
+        inLoveScore >= 3
+      );
+
     const looksLikeGreeting =
       normalized.includes(
         "hello xrp"
@@ -350,6 +478,10 @@ export function classifyVoiceCommand(
       action = "turn_excited";
       confidenceLabel =
         `Phrase matched: ready/excited (${readyScore} keyword matches)`;
+    } else if (looksLikeInLove) {
+      action = "turn_in_love";
+      confidenceLabel =
+        `Phrase matched: very happy/in-love (${inLoveScore} keyword matches)`;
     } else if (looksLikeGreeting) {
       action = "turn_happy";
       confidenceLabel =
@@ -460,15 +592,7 @@ export function useVoiceCommands(
         new RecognitionConstructor();
 
       recognition.continuous = true;
-
-      /*
-       * Interim results reduce latency:
-       * the phrase can trigger as soon as enough
-       * words are recognized, without waiting for
-       * the full sentence to finish.
-       */
       recognition.interimResults = true;
-
       recognition.lang = "en-US";
       recognition.maxAlternatives = 1;
 
