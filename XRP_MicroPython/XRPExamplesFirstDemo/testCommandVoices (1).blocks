@@ -1,0 +1,102 @@
+from EmotionLib import (
+    Emotion,
+    EmotionDefinition,
+    EmotionOutputHub,
+    RedVisionEmotionDisplay,
+    XPPEmotionPublisher,
+)
+from XRPLib.board import Board
+from EmotionLib.voice_command_receiver import VoiceCommandReceiver
+from XRPLib.differential_drive import DifferentialDrive
+import time
+
+USE_RED_VISION = True
+
+emotionPublisher = XPPEmotionPublisher()
+
+redVisionEmotionDisplay = (
+    RedVisionEmotionDisplay(
+        sheets_directory="/emotion_sheets_192",
+        custom_sheets_directory="/emotion_sheets_custom",
+        strict_assets=False,
+        cache_capacity=4,
+        debug=False,
+        enabled=USE_RED_VISION,
+        strict_display=False,
+    )
+)
+
+emotionOutputs = EmotionOutputHub(
+    emotionPublisher.publish_state,
+    redVisionEmotionDisplay.apply_state,
+    strict=False,
+)
+
+emotion = Emotion(
+    publisher=emotionOutputs.publish_state,
+    min_time_before_switch_ms=0,
+)
+
+board = Board.get_default_board()
+
+voiceCommandReceiver = VoiceCommandReceiver()
+voiceCommand = None
+
+emotion.register_definition(
+    EmotionDefinition(
+        name="happy",
+        emotion_id=1,
+        playback_fps=10,
+        frame_subset=None,
+        min_time_before_switch_ms=None,
+        repeat_mode="ping_pong",
+        repeat_count=None,
+        flag_overrides=(
+            "dashboard_screen",
+        ),
+    )
+)
+
+emotion.register_definition(
+    EmotionDefinition(
+        name="sad",
+        emotion_id=9,
+        playback_fps=10,
+        frame_subset=None,
+        min_time_before_switch_ms=None,
+        repeat_mode="ping_pong",
+        repeat_count=None,
+        flag_overrides=(
+            "dashboard_screen",
+        ),
+    )
+)
+
+differentialDrive = DifferentialDrive.get_default_differential_drive()
+
+
+while not (board.is_button_pressed()):
+  voiceCommand = voiceCommandReceiver.poll()
+  if voiceCommand == "turn_happy":
+    emotion.set_emotion("happy", force_reset=False)
+  if voiceCommand == "turn_sad":
+    emotion.set_emotion("sad", force_reset=False)
+  if voiceCommand == "turn_right":
+    differentialDrive.arcade(0, (-0.3))
+    time.sleep(0.4)
+    differentialDrive.stop()
+  if voiceCommand == "turn_left":
+    differentialDrive.arcade(0, 0.3)
+    time.sleep(0.4)
+    differentialDrive.stop()
+  if voiceCommand == "turn_back":
+    differentialDrive.arcade((-0.25), 0)
+    time.sleep(0.4)
+    differentialDrive.stop()
+  emotion.run_emotion()
+  redVisionEmotionDisplay.update()
+
+
+
+## 2026-06-25 11:06:69
+##XRPBLOCKS {"blocks":{"languageVersion":0,"blocks":[{"type":"xrp_emotion_configure_red_vision","id":"g@C2|?W-+J2X^GmE=D[o","x":220,"y":532,"fields":{"ENABLED":"True"},"next":{"block":{"type":"controls_whileUntil","id":"b,R9~~*;zZSLdl6/.5Th","fields":{"MODE":"UNTIL"},"inputs":{"BOOL":{"block":{"type":"xrp_button_pressed","id":"6=7Lm]6cUMA)B-N9Udvk"}},"DO":{"block":{"type":"xrp_voice_update","id":"Da6ft^va}1V|AG.sG*k4","next":{"block":{"type":"xrp_voice_if_command","id":"*b)kfL7%=25TCw`?/ga`","fields":{"COMMAND":"turn_happy"},"inputs":{"DO":{"block":{"type":"xrp_emotion_set","id":"JoI`]I]^?sr:Lx0x@j+}","fields":{"EMOTION":"happy","FORCE_RESET":"False"}}}},"next":{"block":{"type":"xrp_voice_if_command","id":"i=^|?cX[]wwItCs@SowU","fields":{"COMMAND":"turn_sad"},"inputs":{"DO":{"block":{"type":"xrp_emotion_set","id":".Jagt/}uj:+j?:|@`OiH","fields":{"EMOTION":"sad","FORCE_RESET":"False"}}}},"next":{"block":{"type":"xrp_voice_if_command","id":"emmB8#ov5skqxN!XA*T/","fields":{"COMMAND":"turn_right"},"inputs":{"DO":{"block":{"type":"xrp_arcade","id":"5%bM7d?Zrye_r#Zxj]FR","inputs":{"STRAIGHT":{"shadow":{"type":"math_number","id":"KxVZL7qXr^=e1hQs=~!p","fields":{"NUM":0}}},"TURN":{"shadow":{"type":"math_number","id":"L%/#3#CZK!o.=YH_0Udp","fields":{"NUM":-0.3}}}},"next":{"block":{"type":"xrp_sleep","id":"DpwPuZGck4PNRCO5VlG;","inputs":{"TIME":{"shadow":{"type":"math_number","id":"4O6ARWf(x(}GQbf[9z%N","fields":{"NUM":0.4}}}},"next":{"block":{"type":"xrp_stop_motors","id":"R1l;T662Vhy[eg5A/i82"}}}}}}},"next":{"block":{"type":"xrp_voice_if_command","id":"9_WFdPvx:P-L8*y5l!Co","fields":{"COMMAND":"turn_left"},"inputs":{"DO":{"block":{"type":"xrp_arcade","id":"{V$K`t~t2(`CzhZHg!#o","inputs":{"STRAIGHT":{"shadow":{"type":"math_number","id":"9G5Z=m8JcU)k)bXo:n7]","fields":{"NUM":0}}},"TURN":{"shadow":{"type":"math_number","id":"v^.1nq@2WGJjVV77J+K2","fields":{"NUM":0.3}}}},"next":{"block":{"type":"xrp_sleep","id":"Nlo.,K/rK]w@%ke-!vl@","inputs":{"TIME":{"shadow":{"type":"math_number","id":"~h_k[gzYD[l1E]HU?u+6","fields":{"NUM":0.4}}}},"next":{"block":{"type":"xrp_stop_motors","id":"=$4*tei9k-}CY^upLuvb"}}}}}}},"next":{"block":{"type":"xrp_voice_if_command","id":"27OCIGhA!ucN$ixl14I~","fields":{"COMMAND":"turn_back"},"inputs":{"DO":{"block":{"type":"xrp_arcade","id":"W{xp!q?_V3YDYxsnPb]P","inputs":{"STRAIGHT":{"shadow":{"type":"math_number","id":"7M/|e3V@gRMLU/!rz!8l","fields":{"NUM":-0.25}}},"TURN":{"shadow":{"type":"math_number","id":"=F1(gRM:Ka%?04E1Oy!|","fields":{"NUM":0}}}},"next":{"block":{"type":"xrp_sleep","id":"c,RRC/rBrF4ItPXq.,6m","inputs":{"TIME":{"shadow":{"type":"math_number","id":"7].(z3CbdB*kti4q~UNq","fields":{"NUM":0.4}}}},"next":{"block":{"type":"xrp_stop_motors","id":"K@%06-OaZd/mOm!)aRHM"}}}}}}},"next":{"block":{"type":"xrp_emotion_run","id":"-[_yCG$b0ON^u6aU_q0I"}}}}}}}}}}}}}}}}}}]}}

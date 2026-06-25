@@ -2,6 +2,7 @@ import gc
 import os
 import sys
 import time
+import ujson
 
 cv = None
 np = None
@@ -68,6 +69,38 @@ FRAME_OFFSET_Y = (
 ) // 2
 
 
+# Keep the physical Red Vision display stable.
+# The dashboard can animate faster, but this display
+# is limited by the cv.imshow() path on the XRP.
+MAX_RED_VISION_FPS = 4
+
+CUSTOM_SHEETS_DIRECTORY = (
+    "/emotion_sheets_custom"
+)
+
+CUSTOM_MANIFEST_FILENAME = (
+    "manifest.json"
+)
+
+
+# Red Vision-only frame overrides.
+#
+# These overrides affect only the physical Red Vision
+# display. They do not change the dashboard animation
+# or the XPP emotion state sent to XRPWeb.
+#
+# Supported values:
+#   "first" -> show only frame 0
+#   "last"  -> show only the final frame
+#
+# For the demo, sadness should look like a static
+# final sad face on the physical display, while the
+# dashboard can still play the full sad animation.
+RED_VISION_FRAME_SUBSET_OVERRIDES = {
+    "sad": "last",
+}
+
+
 # --------------------------------------------------
 # Official emotion assets
 # --------------------------------------------------
@@ -87,8 +120,8 @@ OFFICIAL_EMOTION_ASSETS = {
     ),
     "happy": (
         4,
-        6,
-        "loop",
+        4,
+        "ping_pong",
     ),
     "chuckled": (
         3,
@@ -127,8 +160,8 @@ OFFICIAL_EMOTION_ASSETS = {
     ),
     "sad": (
         3,
-        4,
-        "loop",
+        5,
+        "ping_pong",
     ),
     "angry": (
         4,
@@ -186,6 +219,9 @@ class RedVisionEmotionDisplay:
         sheets_directory=(
             "/emotion_sheets_192"
         ),
+        custom_sheets_directory=(
+            CUSTOM_SHEETS_DIRECTORY
+        ),
         strict_assets=False,
         cache_capacity=3,
         debug=False,
@@ -214,6 +250,10 @@ class RedVisionEmotionDisplay:
 
         self._sheets_directory = (
             sheets_directory.rstrip("/")
+        )
+
+        self._custom_sheets_directory = (
+            custom_sheets_directory.rstrip("/")
         )
 
         self._strict_assets = (
@@ -348,13 +388,188 @@ class RedVisionEmotionDisplay:
     def _sheet_path(
         self,
         emotion_name,
+        sheets_directory=None,
     ):
-        return (
+        directory = (
             self._sheets_directory
+            if sheets_directory is None
+            else sheets_directory
+        )
+
+        return (
+            directory
             + "/"
             + emotion_name
             + ".png"
         )
+
+
+    def _custom_manifest_path(
+        self,
+    ):
+        return (
+            self._custom_sheets_directory
+            + "/"
+            + CUSTOM_MANIFEST_FILENAME
+        )
+
+
+    def _load_custom_emotion_assets(
+        self,
+    ):
+        manifest_path = (
+            self._custom_manifest_path()
+        )
+
+        if not self._asset_exists(
+            manifest_path
+        ):
+            return {}
+
+        try:
+            with open(
+                manifest_path,
+                "r",
+            ) as manifest_file:
+                manifest = ujson.loads(
+                    manifest_file.read()
+                )
+
+        except Exception as error:
+            self._last_error = (
+                "Could not read custom emotion "
+                "manifest: "
+                + str(error)
+            )
+
+            self._log(
+                self._last_error
+            )
+
+            return {}
+
+        if not isinstance(
+            manifest,
+            dict,
+        ):
+            return {}
+
+        custom_assets = {}
+
+        for (
+            emotion_name,
+            raw_entry,
+        ) in manifest.items():
+            clean_name = (
+                self._clean_name(
+                    emotion_name
+                )
+            )
+
+            if (
+                not isinstance(
+                    raw_entry,
+                    dict,
+                )
+                or not clean_name
+            ):
+                continue
+
+            frame_count = (
+                raw_entry.get(
+                    "frame_count",
+                    1,
+                )
+            )
+
+            default_fps = (
+                raw_entry.get(
+                    "default_fps",
+                    4,
+                )
+            )
+
+            repeat_mode = (
+                raw_entry.get(
+                    "repeat_mode",
+                    "loop",
+                )
+            )
+
+            if (
+                isinstance(
+                    frame_count,
+                    bool,
+                )
+                or not isinstance(
+                    frame_count,
+                    int,
+                )
+                or frame_count <= 0
+                or frame_count > 16
+            ):
+                frame_count = 1
+
+            if (
+                isinstance(
+                    default_fps,
+                    bool,
+                )
+                or not isinstance(
+                    default_fps,
+                    (int, float),
+                )
+                or default_fps <= 0
+            ):
+                default_fps = 4
+
+            if repeat_mode not in (
+                "once",
+                "loop",
+                "count",
+                "ping_pong",
+            ):
+                repeat_mode = "loop"
+
+            custom_assets[
+                clean_name
+            ] = (
+                frame_count,
+                default_fps,
+                repeat_mode,
+            )
+
+        return custom_assets
+
+
+    def _get_asset_info(
+        self,
+        emotion_name,
+    ):
+        if (
+            emotion_name
+            in OFFICIAL_EMOTION_ASSETS
+        ):
+            return (
+                self._sheets_directory,
+                OFFICIAL_EMOTION_ASSETS[
+                    emotion_name
+                ],
+            )
+
+        custom_assets = (
+            self._load_custom_emotion_assets()
+        )
+
+        if emotion_name in custom_assets:
+            return (
+                self._custom_sheets_directory,
+                custom_assets[
+                    emotion_name
+                ],
+            )
+
+        return None
 
 
     def _asset_exists(
@@ -434,10 +649,12 @@ class RedVisionEmotionDisplay:
         self,
         emotion_name,
         frame_count,
+        sheets_directory=None,
     ):
         sheet_path = (
             self._sheet_path(
-                emotion_name
+                emotion_name,
+                sheets_directory,
             )
         )
 
@@ -553,6 +770,7 @@ class RedVisionEmotionDisplay:
         self,
         emotion_name,
         frame_count,
+        sheets_directory=None,
     ):
         if self._use_cached_sheet(
             emotion_name
@@ -567,6 +785,7 @@ class RedVisionEmotionDisplay:
         sheet = self._read_sheet(
             emotion_name,
             frame_count,
+            sheets_directory,
         )
 
         if sheet is None:
@@ -635,10 +854,13 @@ class RedVisionEmotionDisplay:
                 )
             )
 
-            if (
-                emotion_name
-                not in OFFICIAL_EMOTION_ASSETS
-            ):
+            asset_info = (
+                self._get_asset_info(
+                    emotion_name
+                )
+            )
+
+            if asset_info is None:
                 message = (
                     "Unknown display emotion: "
                     + emotion_name
@@ -651,6 +873,11 @@ class RedVisionEmotionDisplay:
 
                 print(message)
                 continue
+
+            (
+                sheets_directory,
+                asset_tuple,
+            ) = asset_info
 
             if emotion_name in (
                 self._sheet_cache
@@ -666,14 +893,13 @@ class RedVisionEmotionDisplay:
                 continue
 
             frame_count = (
-                OFFICIAL_EMOTION_ASSETS[
-                    emotion_name
-                ][0]
+                asset_tuple[0]
             )
 
             sheet = self._read_sheet(
                 emotion_name,
                 frame_count,
+                sheets_directory,
             )
 
             if sheet is None:
@@ -807,6 +1033,35 @@ class RedVisionEmotionDisplay:
         )
 
 
+    @staticmethod
+    def _apply_red_vision_frame_override(
+        emotion_name,
+        frame_count,
+        frame_subset,
+    ):
+        override = (
+            RED_VISION_FRAME_SUBSET_OVERRIDES.get(
+                emotion_name
+            )
+        )
+
+        if (
+            frame_count <= 0
+            or override is None
+        ):
+            return frame_subset
+
+        if override == "first":
+            return (0,)
+
+        if override == "last":
+            return (
+                frame_count - 1,
+            )
+
+        return frame_subset
+
+
     def _show_current_frame(self):
         if (
             not self._enabled
@@ -890,10 +1145,13 @@ class RedVisionEmotionDisplay:
             )
         )
 
-        if (
-            requested_name
-            not in OFFICIAL_EMOTION_ASSETS
-        ):
+        asset_info = (
+            self._get_asset_info(
+                requested_name
+            )
+        )
+
+        if asset_info is None:
             print(
                 "Display does not have assets for:",
                 requested_name,
@@ -901,13 +1159,22 @@ class RedVisionEmotionDisplay:
 
             requested_name = "idle"
 
+            asset_info = (
+                self._get_asset_info(
+                    requested_name
+                )
+            )
+
+        (
+            sheets_directory,
+            asset_tuple,
+        ) = asset_info
+
         (
             frame_count,
             default_fps,
             default_repeat_mode,
-        ) = OFFICIAL_EMOTION_ASSETS[
-            requested_name
-        ]
+        ) = asset_tuple
 
         generation = state.get(
             "generation",
@@ -931,12 +1198,23 @@ class RedVisionEmotionDisplay:
                 default_fps
             )
 
+        if playback_fps > MAX_RED_VISION_FPS:
+            playback_fps = MAX_RED_VISION_FPS
+
         frame_subset = (
             self._normalize_subset(
                 state.get(
                     "frameSubset"
                 ),
                 frame_count,
+            )
+        )
+
+        frame_subset = (
+            self._apply_red_vision_frame_override(
+                requested_name,
+                frame_count,
+                frame_subset,
             )
         )
 
@@ -1002,6 +1280,7 @@ class RedVisionEmotionDisplay:
                 self._load_sheet(
                     requested_name,
                     frame_count,
+                    sheets_directory,
                 )
             )
 
@@ -1149,9 +1428,13 @@ class RedVisionEmotionDisplay:
             return False
 
         """
-        Advances the display animation without blocking.
+        Advances the display animation.
 
-        Call this repeatedly from the robot's main loop.
+        This method is time-synchronized. If the
+        physical display cannot render every frame
+        requested by playback_fps, it skips the
+        intermediate frames instead of slowing the
+        whole animation down.
         """
 
         if (
@@ -1176,19 +1459,65 @@ class RedVisionEmotionDisplay:
         ):
             return False
 
-        self._last_frame_ms = now
+        # The display may be slower than the
+        # requested FPS. Example: requested 20 FPS
+        # means one logical frame every 50 ms. If
+        # cv.imshow() plus the main loop took
+        # 230 ms, advance about 4 logical frames and
+        # show only the newest one. This keeps the
+        # animation speed correct even when the LCD
+        # cannot show every frame.
+        logical_steps = int(
+            elapsed_ms
+            // self._frame_delay_ms
+        )
+
+        if logical_steps < 1:
+            logical_steps = 1
+
+        # Avoid spending too much time advancing if
+        # the program was paused or blocked for a
+        # long time.
+        maximum_steps = (
+            len(self._sequence)
+            * 2
+        )
 
         if (
-            self._repeat_mode
-            == "ping_pong"
+            logical_steps
+            > maximum_steps
         ):
-            advanced = (
-                self._advance_ping_pong()
+            logical_steps = (
+                logical_steps
+                % len(self._sequence)
             )
-        else:
-            advanced = (
-                self._advance_forward()
-            )
+
+            if logical_steps < 1:
+                logical_steps = 1
+
+        self._last_frame_ms = now
+
+        advanced = False
+
+        for _ in range(
+            logical_steps
+        ):
+            if (
+                self._repeat_mode
+                == "ping_pong"
+            ):
+                step_advanced = (
+                    self._advance_ping_pong()
+                )
+            else:
+                step_advanced = (
+                    self._advance_forward()
+                )
+
+            if not step_advanced:
+                break
+
+            advanced = True
 
         if not advanced:
             return False
@@ -1266,6 +1595,14 @@ class RedVisionEmotionDisplay:
         self._last_state_signature = None
 
         gc.collect()
+
+
+    def get_target_fps(self):
+        return self._playback_fps
+
+
+    def get_frame_delay_ms(self):
+        return self._frame_delay_ms
 
 
     def get_active_emotion(self):
