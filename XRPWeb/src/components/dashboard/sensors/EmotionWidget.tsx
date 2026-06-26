@@ -21,6 +21,11 @@ import ManageEmotionsDialog from
 import VoiceCommandPanel from
   "../voice/VoiceCommandPanel";
 
+import type {
+  VoiceCommandAction,
+  VoiceCommandResult,
+} from "../voice/useVoiceCommands";
+
 import {
   sendVoiceRuntimeCommandToXrp,
 } from "../voice/voiceCommandRobotService";
@@ -162,6 +167,9 @@ const [
 const lastSoundEventRef =
   useRef<string | null>(null);
 
+const suppressNextAutoSoundRef =
+  useRef(false);
+
   const [
   isEmotionManagerOpen,
   setEmotionManagerOpen,
@@ -210,6 +218,12 @@ const lastSoundEventRef =
 
   const lastRobotEmotionEventRef =
     useRef<string | null>(null);
+
+  const lastForwardedVoiceEmotionIdRef =
+    useRef<number | null>(null);
+
+  const lastForwardedVoiceEmotionAtRef =
+    useRef(0);
 
   const [lastUpdated, setLastUpdated] =
     useState(
@@ -285,6 +299,12 @@ const lastSoundEventRef =
       eventKey;
 
     setVoiceEmotionId(null);
+
+    lastForwardedVoiceEmotionIdRef.current =
+      null;
+
+    lastForwardedVoiceEmotionAtRef.current =
+      0;
   }, [
     robotEmotion?.emotionGeneration,
     robotEmotion?.emotionId,
@@ -496,6 +516,16 @@ const repeatCount =
     const soundEventKey =
       `${generation}:${activeEmotionId}`;
 
+    if (suppressNextAutoSoundRef.current) {
+      suppressNextAutoSoundRef.current =
+        false;
+
+      lastSoundEventRef.current =
+        soundEventKey;
+
+      return;
+    }
+
     if (
       lastSoundEventRef.current ===
       soundEventKey
@@ -701,101 +731,207 @@ const repeatCount =
     };
 
 
+  const playRepeatedVoiceEmotionSound =
+    async (
+      emotionId: number,
+      repeatCount: number
+    ): Promise<void> => {
+      if (!emotionSoundsEnabled) {
+        return;
+      }
+
+      const manager =
+        soundManagerRef.current;
+
+      if (!manager) {
+        return;
+      }
+
+      const emotionConfig =
+        customEmotionById.get(
+          emotionId
+        ) ??
+        getEmotionById(
+          emotionId
+        );
+
+      if (!emotionConfig) {
+        return;
+      }
+
+      const safeRepeatCount =
+        Math.min(
+          Math.max(
+            repeatCount,
+            1
+          ),
+          3
+        );
+
+      for (
+        let index = 0;
+        index < safeRepeatCount;
+        index += 1
+      ) {
+        manager.playEmotion({
+          emotionId,
+          emotionName:
+            emotionConfig.name,
+        });
+
+        if (
+          index <
+          safeRepeatCount - 1
+        ) {
+          await new Promise(
+            (resolve) => {
+              window.setTimeout(
+                resolve,
+                350
+              );
+            }
+          );
+        }
+      }
+    };
+
+
+  const shouldForwardEmotionCommandToXrp =
+    (emotionId: number): boolean => {
+      const now =
+        Date.now();
+
+      const alreadyForwardedRecently =
+        lastForwardedVoiceEmotionIdRef.current ===
+          emotionId &&
+        now -
+          lastForwardedVoiceEmotionAtRef.current <
+          1200;
+
+      /*
+       * If the dashboard already shows this emotion,
+       * do not send the same command to the XRP again.
+       * This prevents unnecessary Red Vision updates.
+       */
+      if (
+        activeEmotionId === emotionId ||
+        alreadyForwardedRecently
+      ) {
+        console.log(
+          "[voice-xrp] skipped duplicate emotion:",
+          emotionId
+        );
+
+        return false;
+      }
+
+      lastForwardedVoiceEmotionIdRef.current =
+        emotionId;
+
+      lastForwardedVoiceEmotionAtRef.current =
+        now;
+
+      return true;
+    };
+
+
+  const handleEmotionVoiceCommand =
+    async (
+      action: VoiceCommandAction,
+      emotionId: number,
+      result?: VoiceCommandResult
+    ): Promise<void> => {
+      const safeRepeatCount =
+        Math.min(
+          Math.max(
+            result?.repeatCount ?? 1,
+            1
+          ),
+          3
+        );
+
+      const shouldForwardToXrp =
+        shouldForwardEmotionCommandToXrp(
+          emotionId
+        );
+
+      const shouldPulseDashboard =
+        voicePreviewEnabled ||
+        activeEmotionId === emotionId ||
+        safeRepeatCount > 1;
+
+      if (shouldPulseDashboard) {
+        if (emotionSoundsEnabled) {
+          suppressNextAutoSoundRef.current =
+            true;
+        }
+
+        applyDashboardVoiceEmotion(
+          emotionId
+        );
+      }
+
+      void playRepeatedVoiceEmotionSound(
+        emotionId,
+        safeRepeatCount
+      );
+
+      if (!shouldForwardToXrp) {
+        return;
+      }
+
+      await sendVoiceRuntimeCommandToXrp(
+        action
+      );
+    };
+
+
   const handleDashboardVoiceCommand =
-    async (action: string): Promise<void> => {
+    async (
+      action: VoiceCommandAction,
+      result?: VoiceCommandResult
+    ): Promise<void> => {
       console.log(
         "[voice-panel] command:",
         action
       );
 
       if (action === "turn_happy") {
-        /*
-         * By default, voice commands are forwarded to
-         * the XRP and the dashboard waits for the real
-         * robot emotion event.
-         *
-         * Local preview is optional, useful when the XRP
-         * is not running a voice program.
-         */
-        if (voicePreviewEnabled) {
-          applyDashboardVoiceEmotion(
-            VOICE_HAPPY_EMOTION_ID
-          );
-        }
-
-        void sendVoiceRuntimeCommandToXrp(
-          action
-        ).catch(() => {
-          /*
-           * Ignore for emotion preview commands because
-           * local preview may be intentionally used when
-           * the XRP is not connected or no program is
-           * listening.
-           */
-        });
+        await handleEmotionVoiceCommand(
+          action,
+          VOICE_HAPPY_EMOTION_ID,
+          result
+        );
 
         return;
       }
 
       if (action === "turn_excited") {
-        if (voicePreviewEnabled) {
-          applyDashboardVoiceEmotion(
-            VOICE_EXCITED_EMOTION_ID
-          );
-        }
-
-        void sendVoiceRuntimeCommandToXrp(
-          action
-        ).catch(() => {
-          /*
-           * Ignore for emotion preview commands because
-           * local preview may be intentionally used when
-           * the XRP is not connected or no program is
-           * listening.
-           */
-        });
+        await handleEmotionVoiceCommand(
+          action,
+          VOICE_EXCITED_EMOTION_ID,
+          result
+        );
 
         return;
       }
 
       if (action === "turn_in_love") {
-        if (voicePreviewEnabled) {
-          applyDashboardVoiceEmotion(
-            VOICE_IN_LOVE_EMOTION_ID
-          );
-        }
-
-        void sendVoiceRuntimeCommandToXrp(
-          action
-        ).catch(() => {
-          /*
-           * Ignore for emotion preview commands because
-           * local preview may be intentionally used when
-           * the XRP is not connected or no program is
-           * listening.
-           */
-        });
+        await handleEmotionVoiceCommand(
+          action,
+          VOICE_IN_LOVE_EMOTION_ID,
+          result
+        );
 
         return;
       }
 
       if (action === "turn_sad") {
-        if (voicePreviewEnabled) {
-          applyDashboardVoiceEmotion(
-            VOICE_SAD_EMOTION_ID
-          );
-        }
-
-        void sendVoiceRuntimeCommandToXrp(
-          action
-        ).catch(() => {
-          /*
-           * Ignore for emotion preview commands because
-           * local preview may be intentionally used when
-           * the XRP is not connected or no program is
-           * listening.
-           */
-        });
+        await handleEmotionVoiceCommand(
+          action,
+          VOICE_SAD_EMOTION_ID,
+          result
+        );
 
         return;
       }
@@ -1155,9 +1291,13 @@ const repeatCount =
         </div>
 
         <VoiceCommandPanel
-          onCommand={async (action) => {
+          onCommand={async (
+            action,
+            result
+          ) => {
             await handleDashboardVoiceCommand(
-              action
+              action,
+              result
             );
           }}
         />

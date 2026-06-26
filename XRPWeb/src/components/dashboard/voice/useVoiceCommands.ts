@@ -77,6 +77,7 @@ export interface VoiceCommandResult {
   transcript: string;
   action: VoiceCommandAction;
   confidenceLabel: string;
+  repeatCount: number;
 }
 
 
@@ -153,6 +154,36 @@ function hasAnyToken(
 }
 
 
+function countWordOccurrences(
+  words: string[],
+  targetWords: string[]
+): number {
+  const targets =
+    new Set(targetWords);
+
+  return words.filter((word) =>
+    targets.has(word)
+  ).length;
+}
+
+
+function repeatedEmotionCount(
+  words: string[],
+  targetWords: string[]
+): number {
+  return Math.min(
+    Math.max(
+      countWordOccurrences(
+        words,
+        targetWords
+      ),
+      1
+    ),
+    3
+  );
+}
+
+
 export function classifyVoiceCommand(
   transcript: string
 ): VoiceCommandResult {
@@ -176,9 +207,10 @@ export function classifyVoiceCommand(
   let confidenceLabel =
     "No matching command";
 
+  let repeatCount = 1;
+
   /*
    * Safety / macro commands first.
-   * They must be checked before generic emotion phrases.
    */
   if (
     normalized === "stop" ||
@@ -211,13 +243,10 @@ export function classifyVoiceCommand(
       "let us play"
     ) ||
     normalized.includes(
+      "lets do a challenge"
+    ) ||
+    normalized.includes(
       "lets go to the challenge"
-    ) ||
-    normalized.includes(
-      "let us go to the challenge"
-    ) ||
-    normalized.includes(
-      "lets go challenge"
     ) ||
     normalized.includes(
       "go to the challenge"
@@ -225,31 +254,16 @@ export function classifyVoiceCommand(
     normalized.includes(
       "start challenge"
     ) ||
-    normalized.includes(
-      "start the challenge"
-    ) ||
     normalized === "challenge"
   ) {
     action = "lets_play";
-    confidenceLabel = "Direct challenge command";
+    confidenceLabel = "Challenge/play command";
   } else if (
     normalized.includes(
       "showtime"
     ) ||
     normalized.includes(
       "show time"
-    ) ||
-    normalized.includes(
-      "its showtime"
-    ) ||
-    normalized.includes(
-      "its show time"
-    ) ||
-    normalized.includes(
-      "it is showtime"
-    ) ||
-    normalized.includes(
-      "it is show time"
     ) ||
     normalized.includes(
       "start show"
@@ -260,10 +274,12 @@ export function classifyVoiceCommand(
     normalized.includes(
       "do a dance"
     ) ||
-    normalized === "dance"
+    normalized.includes(
+      "dance"
+    )
   ) {
     action = "showtime";
-    confidenceLabel = "Direct showtime command";
+    confidenceLabel = "Showtime macro command";
   } else if (
     normalized.includes(
       "go to sleep"
@@ -279,11 +295,14 @@ export function classifyVoiceCommand(
       "good night"
     ) ||
     normalized.includes(
-      "goodnight"
+      "buenas noches"
+    ) ||
+    normalized.includes(
+      "duermete"
     )
   ) {
     action = "go_to_sleep";
-    confidenceLabel = "Direct sleep command";
+    confidenceLabel = "Sleep macro command";
   } else if (
     normalized.includes(
       "turn to the right"
@@ -354,13 +373,56 @@ export function classifyVoiceCommand(
     normalized.includes(
       "be sad"
     ) ||
+    normalized.includes(
+      "i am sad"
+    ) ||
+    normalized.includes(
+      "im sad"
+    ) ||
+    normalized.includes(
+      "i feel sad"
+    ) ||
+    normalized.includes(
+      "today i had a sad day"
+    ) ||
+    normalized.includes(
+      "today i had a bad day"
+    ) ||
+    normalized.includes(
+      "i had a bad day"
+    ) ||
+    normalized.includes(
+      "bad day"
+    ) ||
+    normalized.includes(
+      "sad day"
+    ) ||
+    normalized.includes(
+      "i feel bad"
+    ) ||
+    normalized.includes(
+      "i am upset"
+    ) ||
+    normalized.includes(
+      "im upset"
+    ) ||
     normalized === "sad" ||
+    normalized.includes(
+      "sad sad"
+    ) ||
     normalized.includes(
       "triste"
     )
   ) {
     action = "turn_sad";
-    confidenceLabel = "Direct emotion command";
+    repeatCount = repeatedEmotionCount(
+      tokenList,
+      ["sad", "triste"]
+    );
+    confidenceLabel =
+      repeatCount > 1
+        ? `Repeated sad command x${repeatCount}`
+        : "Sad emotion phrase";
   } else if (
     normalized.includes(
       "turn in love"
@@ -372,6 +434,57 @@ export function classifyVoiceCommand(
       "be in love"
     ) ||
     normalized.includes(
+      "love love"
+    ) ||
+    normalized.includes(
+      "you are my friend"
+    ) ||
+    normalized.includes(
+      "youre my friend"
+    ) ||
+    normalized.includes(
+      "you are my best friend"
+    ) ||
+    normalized.includes(
+      "youre my best friend"
+    ) ||
+    normalized.includes(
+      "i like you"
+    ) ||
+    normalized.includes(
+      "i love you"
+    ) ||
+    normalized.includes(
+      "my friend"
+    ) ||
+    normalized.includes(
+      "best friend"
+    ) ||
+    normalized.includes(
+      "im really happy"
+    ) ||
+    normalized.includes(
+      "i am really happy"
+    ) ||
+    normalized.includes(
+      "im very happy"
+    ) ||
+    normalized.includes(
+      "i am very happy"
+    ) ||
+    normalized.includes(
+      "i like to work with you"
+    ) ||
+    normalized.includes(
+      "i like working with you"
+    ) ||
+    normalized.includes(
+      "i love working with you"
+    ) ||
+    normalized.includes(
+      "i love to work with you"
+    ) ||
+    normalized.includes(
       "enamorado"
     ) ||
     normalized.includes(
@@ -379,7 +492,19 @@ export function classifyVoiceCommand(
     )
   ) {
     action = "turn_in_love";
-    confidenceLabel = "Direct emotion command";
+    repeatCount = repeatedEmotionCount(
+      tokenList,
+      [
+        "love",
+        "friend",
+        "enamorado",
+        "enamorada",
+      ]
+    );
+    confidenceLabel =
+      repeatCount > 1
+        ? `Repeated in-love command x${repeatCount}`
+        : "In-love/friend phrase";
   } else if (
     normalized.includes(
       "turn happy"
@@ -387,13 +512,48 @@ export function classifyVoiceCommand(
     normalized.includes(
       "be happy"
     ) ||
+    normalized.includes(
+      "i feel happy"
+    ) ||
+    normalized.includes(
+      "i feel good"
+    ) ||
+    normalized.includes(
+      "i feel great"
+    ) ||
+    normalized.includes(
+      "today is a good day"
+    ) ||
+    normalized.includes(
+      "today is a happy day"
+    ) ||
+    normalized.includes(
+      "good day"
+    ) ||
+    normalized.includes(
+      "great day"
+    ) ||
+    normalized.includes(
+      "happy happy"
+    ) ||
     normalized === "happy" ||
+    normalized === "xrp" ||
+    normalized === "x r p" ||
+    normalized === "ex ar pee" ||
+    normalized === "ecs ar pi" ||
     normalized.includes(
       "feliz"
     )
   ) {
     action = "turn_happy";
-    confidenceLabel = "Direct emotion command";
+    repeatCount = repeatedEmotionCount(
+      tokenList,
+      ["happy", "feliz"]
+    );
+    confidenceLabel =
+      repeatCount > 1
+        ? `Repeated happy command x${repeatCount}`
+        : "Happy emotion phrase";
   } else if (
     normalized.includes(
       "turn excited"
@@ -401,13 +561,45 @@ export function classifyVoiceCommand(
     normalized.includes(
       "be excited"
     ) ||
+    normalized.includes(
+      "i am excited"
+    ) ||
+    normalized.includes(
+      "im excited"
+    ) ||
+    normalized.includes(
+      "lets get excited"
+    ) ||
+    normalized.includes(
+      "this is amazing"
+    ) ||
+    normalized.includes(
+      "this is awesome"
+    ) ||
+    normalized.includes(
+      "wow"
+    ) ||
+    normalized.includes(
+      "excited excited"
+    ) ||
     normalized === "excited" ||
     normalized.includes(
       "emocionado"
     )
   ) {
     action = "turn_excited";
-    confidenceLabel = "Direct emotion command";
+    repeatCount = repeatedEmotionCount(
+      tokenList,
+      [
+        "excited",
+        "wow",
+        "emocionado",
+      ]
+    );
+    confidenceLabel =
+      repeatCount > 1
+        ? `Repeated excited command x${repeatCount}`
+        : "Excited emotion phrase";
   } else {
     const readyWords = [
       "are",
@@ -436,6 +628,8 @@ export function classifyVoiceCommand(
       "happy",
       "like",
       "love",
+      "friend",
+      "best",
       "work",
       "working",
       "with",
@@ -477,6 +671,60 @@ export function classifyVoiceCommand(
         greetingWords
       );
 
+    const sadWords = [
+      "today",
+      "i",
+      "had",
+      "a",
+      "sad",
+      "bad",
+      "day",
+      "feel",
+      "upset",
+      "triste",
+    ];
+
+    const sadScore =
+      scoreTokens(
+        tokens,
+        sadWords
+      );
+
+    const happyWords = [
+      "xrp",
+      "happy",
+      "good",
+      "great",
+      "day",
+      "feel",
+      "hello",
+      "hi",
+      "hey",
+      "feliz",
+    ];
+
+    const happyScore =
+      scoreTokens(
+        tokens,
+        happyWords
+      );
+
+    const excitedWords = [
+      "ready",
+      "excited",
+      "amazing",
+      "awesome",
+      "wow",
+      "challenge",
+      "today",
+    ];
+
+    const excitedScore =
+      scoreTokens(
+        tokens,
+        excitedWords
+      );
+
     const looksLikeReady =
       normalized.includes(
         "are you ready"
@@ -498,18 +746,6 @@ export function classifyVoiceCommand(
         "i am happy"
       ) ||
       normalized.includes(
-        "im really happy"
-      ) ||
-      normalized.includes(
-        "i am really happy"
-      ) ||
-      normalized.includes(
-        "im very happy"
-      ) ||
-      normalized.includes(
-        "i am very happy"
-      ) ||
-      normalized.includes(
         "i like to work with you"
       ) ||
       normalized.includes(
@@ -522,34 +758,107 @@ export function classifyVoiceCommand(
         "i love to work with you"
       ) ||
       normalized.includes(
-        "hoy estoy muy feliz"
+        "you are my friend"
       ) ||
       normalized.includes(
-        "estoy muy feliz"
+        "youre my friend"
+      ) ||
+      normalized.includes(
+        "i like you"
+      ) ||
+      normalized.includes(
+        "i love you"
       ) ||
       (
-        tokens.has("happy") &&
-        inLoveScore >= 2
-      ) ||
-      (
-        tokens.has("like") &&
-        (
-          tokens.has("work") ||
-          tokens.has("working")
-        ) &&
-        tokens.has("you")
+        tokens.has("friend") &&
+        inLoveScore >= 3
       ) ||
       (
         tokens.has("love") &&
-        (
-          tokens.has("work") ||
-          tokens.has("working")
-        ) &&
-        tokens.has("you")
+        inLoveScore >= 2
+      ) ||
+      (
+        tokens.has("happy") &&
+        inLoveScore >= 3
       ) ||
       (
         tokens.has("feliz") &&
         inLoveScore >= 3
+      );
+
+    const looksLikeSad =
+      normalized.includes(
+        "today i had a sad day"
+      ) ||
+      normalized.includes(
+        "today i had a bad day"
+      ) ||
+      normalized.includes(
+        "i had a bad day"
+      ) ||
+      normalized.includes(
+        "sad day"
+      ) ||
+      normalized.includes(
+        "bad day"
+      ) ||
+      (
+        tokens.has("sad") &&
+        sadScore >= 1
+      ) ||
+      (
+        tokens.has("bad") &&
+        tokens.has("day")
+      ) ||
+      (
+        tokens.has("triste") &&
+        sadScore >= 1
+      );
+
+    const looksLikeHappy =
+      normalized === "xrp" ||
+      normalized === "x r p" ||
+      normalized === "ex ar pee" ||
+      normalized === "ecs ar pi" ||
+      normalized.includes(
+        "happy day"
+      ) ||
+      normalized.includes(
+        "good day"
+      ) ||
+      normalized.includes(
+        "i feel good"
+      ) ||
+      normalized.includes(
+        "i feel great"
+      ) ||
+      (
+        tokens.has("happy") &&
+        happyScore >= 1
+      );
+
+    const looksLikeExcited =
+      normalized.includes(
+        "i am excited"
+      ) ||
+      normalized.includes(
+        "im excited"
+      ) ||
+      normalized.includes(
+        "lets get excited"
+      ) ||
+      normalized.includes(
+        "this is amazing"
+      ) ||
+      normalized.includes(
+        "this is awesome"
+      ) ||
+      normalized.includes(
+        "wow"
+      ) ||
+      (
+        tokens.has("excited") &&
+        excitedScore >= 1
       );
 
     const looksLikeGreeting =
@@ -583,18 +892,54 @@ export function classifyVoiceCommand(
       ) ||
       greetingScore >= 4;
 
-    if (looksLikeReady) {
+    if (
+      looksLikeReady ||
+      looksLikeExcited
+    ) {
       action = "turn_excited";
+      repeatCount = repeatedEmotionCount(
+        tokenList,
+        [
+          "excited",
+          "wow",
+          "emocionado",
+        ]
+      );
       confidenceLabel =
-        `Phrase matched: ready/excited (${readyScore} keyword matches)`;
+        `Phrase matched: ready/excited (${Math.max(
+          readyScore,
+          excitedScore
+        )} keyword matches)`;
+    } else if (looksLikeSad) {
+      action = "turn_sad";
+      repeatCount = repeatedEmotionCount(
+        tokenList,
+        ["sad", "triste"]
+      );
+      confidenceLabel =
+        `Phrase matched: sad/bad day (${sadScore} keyword matches)`;
     } else if (looksLikeInLove) {
       action = "turn_in_love";
+      repeatCount = repeatedEmotionCount(
+        tokenList,
+        ["love", "friend"]
+      );
       confidenceLabel =
-        `Phrase matched: very happy/in-love (${inLoveScore} keyword matches)`;
-    } else if (looksLikeGreeting) {
+        `Phrase matched: in-love/friend (${inLoveScore} keyword matches)`;
+    } else if (
+      looksLikeGreeting ||
+      looksLikeHappy
+    ) {
       action = "turn_happy";
+      repeatCount = repeatedEmotionCount(
+        tokenList,
+        ["happy", "feliz"]
+      );
       confidenceLabel =
-        `Phrase matched: greeting/happy (${greetingScore} keyword matches)`;
+        `Phrase matched: greeting/happy (${Math.max(
+          greetingScore,
+          happyScore
+        )} keyword matches)`;
     }
   }
 
@@ -605,7 +950,21 @@ export function classifyVoiceCommand(
     action,
 
     confidenceLabel,
+
+    repeatCount,
   };
+}
+
+
+function isRepeatableEmotionAction(
+  action: VoiceCommandAction
+): boolean {
+  return (
+    action === "turn_happy" ||
+    action === "turn_sad" ||
+    action === "turn_excited" ||
+    action === "turn_in_love"
+  );
 }
 
 
@@ -728,8 +1087,6 @@ export function useVoiceCommands(
         const results =
           Array.from(event.results);
 
-        
-
         const latest =
           results[results.length - 1];
 
@@ -744,14 +1101,6 @@ export function useVoiceCommands(
           classifyVoiceCommand(
             transcript
           );
-
-          console.log(
-  "[voice] heard:",
-  transcript.trim(),
-  "=>",
-  result.action,
-  result.confidenceLabel
-);
 
         setLastTranscript(
           transcript.trim()
@@ -775,6 +1124,9 @@ export function useVoiceCommands(
           700;
 
         const isDuplicateTooSoon =
+          !isRepeatableEmotionAction(
+            result.action
+          ) &&
           lastSentActionRef.current ===
             result.action &&
           now - lastSentAtRef.current <
@@ -790,6 +1142,13 @@ export function useVoiceCommands(
         lastSentAtRef.current =
           now;
 
+        /*
+         * Send the command once with repeatCount.
+         *
+         * EmotionWidget is responsible for repeating
+         * dashboard-only sound/animation without sending
+         * duplicate commands to the XRP / Red Vision.
+         */
         void optionsRef.current.onCommand?.(
           result
         );
