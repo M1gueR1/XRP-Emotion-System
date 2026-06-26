@@ -50,6 +50,19 @@ const VOICE_EXCITED_EMOTION_ID = 3;
 const VOICE_SAD_EMOTION_ID = 9;
 const VOICE_IN_LOVE_EMOTION_ID = 12;
 
+const DASHBOARD_IDLE_EMOTION_ID = 0;
+const DASHBOARD_HAPPY_EMOTION_ID = 1;
+const DASHBOARD_SAD_EMOTION_ID = 9;
+
+const DASHBOARD_FPS_OVERRIDES: Record<
+  number,
+  number
+> = {
+  [DASHBOARD_IDLE_EMOTION_ID]: 55,
+  [DASHBOARD_HAPPY_EMOTION_ID]: 25,
+  [DASHBOARD_SAD_EMOTION_ID]: 20,
+};
+
 
 
 
@@ -308,12 +321,34 @@ const config =
       ? voiceEmotionGeneration
       : robotEmotion?.emotionGeneration ?? 0;
 
-  const playbackFps =
+  const robotPlaybackFps =
     !voiceOverrideActive &&
     robotEmotion &&
     robotEmotion.emotionFps > 0
       ? robotEmotion.emotionFps
-      : config?.fps ?? 4;
+      : null;
+
+  const catalogPlaybackFps =
+    config?.fps ?? 4;
+
+  /*
+   * Dashboard-only FPS overrides.
+   *
+   * Blockly programs can publish FPS values that are
+   * lower than the local dashboard catalog. Red Vision
+   * should keep using the XRP-side timing, but the
+   * dashboard animation can stay visually fluid for
+   * selected official emotions.
+   */
+  const dashboardFpsOverride =
+    DASHBOARD_FPS_OVERRIDES[
+      activeEmotionId
+    ];
+
+  const playbackFps =
+    dashboardFpsOverride ??
+    robotPlaybackFps ??
+    catalogPlaybackFps;
 
   const catalogRepeatMode =
   customConfig?.repeatModeId ??
