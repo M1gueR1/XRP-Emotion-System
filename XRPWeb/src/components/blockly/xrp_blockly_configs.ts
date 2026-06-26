@@ -95,6 +95,15 @@ const ToolboxJson = {
                 },
                 {
                     "kind": "BLOCK",
+                    "type": "xrp_arcade_for_seconds",
+                    "inputs":{
+                        "STRAIGHT": {"shadow": {"type": "math_number", "fields": {"NUM": "0"}}},
+                        "TURN": {"shadow": {"type": "math_number", "fields": {"NUM": "0.35"}}},
+                        "SECONDS": {"shadow": {"type": "math_number", "fields": {"NUM": "0.4"}}}
+                    },
+                },
+                {
+                    "kind": "BLOCK",
                     "type": "xrp_stop_motors"
                 },
                 {

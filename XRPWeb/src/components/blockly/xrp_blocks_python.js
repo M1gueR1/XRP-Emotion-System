@@ -238,6 +238,104 @@ function setupEmotionGenerator() {
   ].join("\n");
 }
 
+function ensureSafeEmotionUpdateGenerator() {
+  setupEmotionGenerator();
+
+  pythonGenerator.definitions_[
+    'xrp_runtime_safety_state'
+  ] = [
+    "xrp_red_vision_error_count = 0",
+    "xrp_red_vision_enabled = True",
+    "XRP_MAX_DRIVE_SECONDS = 3.0",
+    "XRP_MAX_ARCADE_VALUE = 0.6",
+  ].join("\n");
+
+  pythonGenerator.definitions_[
+    'xrp_runtime_safety_helpers'
+  ] = [
+    "def xrp_clamp(value, low, high):",
+    "    try:",
+    "        numeric_value = float(value)",
+    "    except Exception:",
+    "        numeric_value = 0.0",
+    "    if numeric_value < low:",
+    "        return low",
+    "    if numeric_value > high:",
+    "        return high",
+    "    return numeric_value",
+    "",
+    "def xrp_safe_stop_motors():",
+    "    if 'differentialDrive' in globals():",
+    "        try:",
+    "            differentialDrive.stop()",
+    "        except Exception:",
+    "            pass",
+    "",
+    "def xrp_stop_requested():",
+    "    if 'board' in globals():",
+    "        try:",
+    "            if board.is_button_pressed():",
+    "                print('Safe stop requested by XRP button')",
+    "                return True",
+    "        except Exception:",
+    "            pass",
+    "    if 'voiceCommandReceiver' in globals():",
+    "        try:",
+    "            pending_command = voiceCommandReceiver.poll()",
+    "        except Exception:",
+    "            pending_command = None",
+    "        if pending_command is not None:",
+    "            globals()['voiceCommand'] = pending_command",
+    "            if pending_command == 'stop':",
+    "                print('Safe stop requested by voice')",
+    "                return True",
+    "    return False",
+  ].join("\n");
+
+  pythonGenerator.definitions_[
+    'xrp_safe_emotion_update'
+  ] = [
+    "def xrp_safe_emotion_update():",
+    "    global xrp_red_vision_error_count",
+    "    global xrp_red_vision_enabled",
+    "    try:",
+    "        emotion.run_emotion()",
+    "    except Exception as error:",
+    "        print(",
+    '            "Safe emotion runtime error:",',
+    "            error,",
+    "        )",
+    "        xrp_safe_stop_motors()",
+    "        return False",
+    "",
+    "    if (",
+    "        'USE_RED_VISION' in globals() and",
+    "        USE_RED_VISION and",
+    "        xrp_red_vision_enabled and",
+    "        'redVisionEmotionDisplay' in globals()",
+    "    ):",
+    "        try:",
+    "            redVisionEmotionDisplay.update()",
+    "            xrp_red_vision_error_count = 0",
+    "        except Exception as error:",
+    "            xrp_red_vision_error_count += 1",
+    "            print(",
+    '                "Red Vision update error:",',
+    "                error,",
+    "            )",
+    "            xrp_safe_stop_motors()",
+    "            if xrp_red_vision_error_count >= 3:",
+    "                xrp_red_vision_enabled = False",
+    "                print(",
+    '                    "Red Vision disabled after repeated errors"', 
+    "                )",
+    "            return False",
+    "",
+    "    return True",
+  ].join("\n");
+}
+
+
 pythonGenerator.forBlock[
   "xrp_emotion_configure_red_vision"
 ] = function (block) {
@@ -449,6 +547,76 @@ pythonGenerator.forBlock['xrp_arcade'] = function (block) {
   var code = `differentialDrive.arcade(${value_s}, ${value_t})\n`;
   return code;
 };
+
+pythonGenerator.forBlock['xrp_arcade_for_seconds'] = function (block) {
+  pythonGenerator.definitions_['import_drivetrain'] = 'from XRPLib.differential_drive import DifferentialDrive';
+  pythonGenerator.definitions_['import_time'] = 'import time';
+  pythonGenerator.definitions_[`drietrain_setup`] = `differentialDrive = DifferentialDrive.get_default_differential_drive()`;
+
+  ensureSafeEmotionUpdateGenerator();
+
+  pythonGenerator.definitions_[
+    'xrp_wait_with_safe_updates'
+  ] = [
+    "def xrp_wait_with_safe_updates(duration_s):",
+    "    duration_s = xrp_clamp(",
+    "        duration_s,",
+    "        0.0,",
+    "        XRP_MAX_DRIVE_SECONDS,",
+    "    )",
+    "    duration_ms = int(duration_s * 1000)",
+    "    start_ms = time.ticks_ms()",
+    "    while time.ticks_diff(time.ticks_ms(), start_ms) < duration_ms:",
+    "        if xrp_stop_requested():",
+    "            xrp_safe_stop_motors()",
+    "            return False",
+    "        xrp_safe_emotion_update()",
+    "        time.sleep(0.02)",
+    "    return True",
+  ].join("\n");
+
+  var value_s = pythonGenerator.valueToCode(block, 'STRAIGHT', pythonGenerator.ORDER_ATOMIC) || "0";
+  var value_t = pythonGenerator.valueToCode(block, 'TURN', pythonGenerator.ORDER_ATOMIC) || "0";
+  var value_seconds = pythonGenerator.valueToCode(block, 'SECONDS', pythonGenerator.ORDER_ATOMIC) || "0";
+
+  var straightVar =
+    pythonGenerator.nameDB_
+      ? pythonGenerator.nameDB_.getDistinctName(
+          "xrp_arcade_straight",
+          "VARIABLE"
+        )
+      : "xrp_arcade_straight";
+
+  var turnVar =
+    pythonGenerator.nameDB_
+      ? pythonGenerator.nameDB_.getDistinctName(
+          "xrp_arcade_turn",
+          "VARIABLE"
+        )
+      : "xrp_arcade_turn";
+
+  var secondsVar =
+    pythonGenerator.nameDB_
+      ? pythonGenerator.nameDB_.getDistinctName(
+          "xrp_arcade_seconds",
+          "VARIABLE"
+        )
+      : "xrp_arcade_seconds";
+
+  var code = [
+    `${straightVar} = xrp_clamp(${value_s}, -XRP_MAX_ARCADE_VALUE, XRP_MAX_ARCADE_VALUE)`,
+    `${turnVar} = xrp_clamp(${value_t}, -XRP_MAX_ARCADE_VALUE, XRP_MAX_ARCADE_VALUE)`,
+    `${secondsVar} = xrp_clamp(${value_seconds}, 0.0, XRP_MAX_DRIVE_SECONDS)`,
+    "try:",
+    `  differentialDrive.arcade(${straightVar}, ${turnVar})`,
+    `  xrp_wait_with_safe_updates(${secondsVar})`,
+    "finally:",
+    "  differentialDrive.stop()",
+  ].join("\n") + "\n";
+
+  return code;
+};
+
 
 pythonGenerator.forBlock['xrp_stop_motors'] = function (block) {
   pythonGenerator.definitions_['import_drivetrain'] = 'from XRPLib.differential_drive import DifferentialDrive';
@@ -965,13 +1133,9 @@ pythonGenerator.forBlock['xrp_emotion_set'] = function (block) {
 pythonGenerator.forBlock[
   "xrp_emotion_run"
 ] = function () {
-  setupEmotionGenerator();
+  ensureSafeEmotionUpdateGenerator();
 
-  return [
-    "emotion.run_emotion()",
-    "redVisionEmotionDisplay.update()",
-    "",
-  ].join("\n");
+  return "xrp_safe_emotion_update()\n";
 };
 
 

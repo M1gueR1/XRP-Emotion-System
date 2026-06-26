@@ -190,6 +190,11 @@ const lastSoundEventRef =
     setVoiceEmotionGeneration,
   ] = useState(0);
 
+  const [
+    voicePreviewEnabled,
+    setVoicePreviewEnabled,
+  ] = useState(false);
+
   const lastRobotEmotionEventRef =
     useRef<string | null>(null);
 
@@ -663,26 +668,34 @@ const repeatCount =
 
   const handleDashboardVoiceCommand =
     async (action: string): Promise<void> => {
+      console.log(
+        "[voice-panel] command:",
+        action
+      );
+
       if (action === "turn_happy") {
         /*
-         * Dashboard changes immediately, so the user
-         * gets instant feedback and sounds can play.
+         * By default, voice commands are forwarded to
+         * the XRP and the dashboard waits for the real
+         * robot emotion event.
          *
-         * We also try to forward the tiny V:H command
-         * to the XRP. If there is no active XRP program
-         * listening, the dashboard still works.
+         * Local preview is optional, useful when the XRP
+         * is not running a voice program.
          */
-        applyDashboardVoiceEmotion(
-          VOICE_HAPPY_EMOTION_ID
-        );
+        if (voicePreviewEnabled) {
+          applyDashboardVoiceEmotion(
+            VOICE_HAPPY_EMOTION_ID
+          );
+        }
 
         void sendVoiceRuntimeCommandToXrp(
           action
         ).catch(() => {
           /*
-           * Ignore for happy/sad because dashboard
-           * preview should work even when the XRP is
-           * not connected or no program is listening.
+           * Ignore for emotion preview commands because
+           * local preview may be intentionally used when
+           * the XRP is not connected or no program is
+           * listening.
            */
         });
 
@@ -690,17 +703,20 @@ const repeatCount =
       }
 
       if (action === "turn_excited") {
-        applyDashboardVoiceEmotion(
-          VOICE_EXCITED_EMOTION_ID
-        );
+        if (voicePreviewEnabled) {
+          applyDashboardVoiceEmotion(
+            VOICE_EXCITED_EMOTION_ID
+          );
+        }
 
         void sendVoiceRuntimeCommandToXrp(
           action
         ).catch(() => {
           /*
-           * Ignore for excited because dashboard
-           * preview should work even when the XRP is
-           * not connected or no program is listening.
+           * Ignore for emotion preview commands because
+           * local preview may be intentionally used when
+           * the XRP is not connected or no program is
+           * listening.
            */
         });
 
@@ -708,17 +724,20 @@ const repeatCount =
       }
 
       if (action === "turn_in_love") {
-        applyDashboardVoiceEmotion(
-          VOICE_IN_LOVE_EMOTION_ID
-        );
+        if (voicePreviewEnabled) {
+          applyDashboardVoiceEmotion(
+            VOICE_IN_LOVE_EMOTION_ID
+          );
+        }
 
         void sendVoiceRuntimeCommandToXrp(
           action
         ).catch(() => {
           /*
-           * Ignore for in-love because dashboard
-           * preview should work even when the XRP is
-           * not connected or no program is listening.
+           * Ignore for emotion preview commands because
+           * local preview may be intentionally used when
+           * the XRP is not connected or no program is
+           * listening.
            */
         });
 
@@ -726,19 +745,64 @@ const repeatCount =
       }
 
       if (action === "turn_sad") {
-        applyDashboardVoiceEmotion(
-          VOICE_SAD_EMOTION_ID
-        );
+        if (voicePreviewEnabled) {
+          applyDashboardVoiceEmotion(
+            VOICE_SAD_EMOTION_ID
+          );
+        }
 
         void sendVoiceRuntimeCommandToXrp(
           action
         ).catch(() => {
           /*
-           * Ignore for happy/sad because dashboard
-           * preview should work even when the XRP is
-           * not connected or no program is listening.
+           * Ignore for emotion preview commands because
+           * local preview may be intentionally used when
+           * the XRP is not connected or no program is
+           * listening.
            */
         });
+
+        return;
+      }
+
+      if (action === "go_to_sleep") {
+        if (voicePreviewEnabled) {
+          applyDashboardVoiceEmotion(
+            VOICE_SAD_EMOTION_ID
+          );
+        }
+
+        await sendVoiceRuntimeCommandToXrp(
+          action
+        );
+
+        return;
+      }
+
+      if (action === "showtime") {
+        if (voicePreviewEnabled) {
+          applyDashboardVoiceEmotion(
+            VOICE_EXCITED_EMOTION_ID
+          );
+        }
+
+        await sendVoiceRuntimeCommandToXrp(
+          action
+        );
+
+        return;
+      }
+
+      if (action === "stop") {
+        if (voicePreviewEnabled) {
+          applyDashboardVoiceEmotion(
+            VOICE_SAD_EMOTION_ID
+          );
+        }
+
+        await sendVoiceRuntimeCommandToXrp(
+          action
+        );
 
         return;
       }
@@ -1005,6 +1069,41 @@ const repeatCount =
             </button>
           </div>
         )}
+
+        <div className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-2 py-1.5 dark:border-slate-700">
+          <div className="min-w-0">
+            <div className="text-xs font-bold text-slate-700 dark:text-slate-200">
+              Local voice preview
+            </div>
+
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+              {voicePreviewEnabled
+                ? "Dashboard changes immediately from voice."
+                : "Dashboard waits for the XRP emotion event."}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setVoicePreviewEnabled(
+                (current) => !current
+              );
+            }}
+            className={[
+              "shrink-0 rounded-lg px-3 py-1.5",
+              "text-xs font-bold text-white",
+              "transition",
+              voicePreviewEnabled
+                ? "bg-purple-600 hover:bg-purple-700"
+                : "bg-slate-500 hover:bg-slate-600",
+            ].join(" ")}
+          >
+            {voicePreviewEnabled
+              ? "On"
+              : "Off"}
+          </button>
+        </div>
 
         <VoiceCommandPanel
           onCommand={async (action) => {

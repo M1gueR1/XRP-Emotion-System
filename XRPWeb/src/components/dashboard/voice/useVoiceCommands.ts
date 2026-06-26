@@ -66,6 +66,9 @@ export type VoiceCommandAction =
   | "turn_sad"
   | "turn_excited"
   | "turn_in_love"
+  | "stop"
+  | "showtime"
+  | "go_to_sleep"
   | "unknown";
 
 
@@ -172,7 +175,86 @@ export function classifyVoiceCommand(
   let confidenceLabel =
     "No matching command";
 
+  /*
+   * Safety / macro commands first.
+   * They must be checked before generic emotion phrases.
+   */
   if (
+    normalized === "stop" ||
+    normalized.includes(
+      "stop robot"
+    ) ||
+    normalized.includes(
+      "stop moving"
+    ) ||
+    normalized.includes(
+      "emergency stop"
+    ) ||
+    normalized.includes(
+      "freeze"
+    ) ||
+    normalized.includes(
+      "detente"
+    ) ||
+    normalized.includes(
+      "para"
+    )
+  ) {
+    action = "stop";
+    confidenceLabel = "Direct stop command";
+  } else if (
+    normalized.includes(
+      "showtime"
+    ) ||
+    normalized.includes(
+      "show time"
+    ) ||
+    normalized.includes(
+      "its showtime"
+    ) ||
+    normalized.includes(
+      "its show time"
+    ) ||
+    normalized.includes(
+      "it is showtime"
+    ) ||
+    normalized.includes(
+      "it is show time"
+    ) ||
+    normalized.includes(
+      "start show"
+    ) ||
+    normalized.includes(
+      "demo mode"
+    ) ||
+    normalized.includes(
+      "do a dance"
+    ) ||
+    normalized === "dance"
+  ) {
+    action = "showtime";
+    confidenceLabel = "Direct showtime command";
+  } else if (
+    normalized.includes(
+      "go to sleep"
+    ) ||
+    normalized.includes(
+      "go sleep"
+    ) ||
+    normalized.includes(
+      "sleep mode"
+    ) ||
+    normalized === "sleep" ||
+    normalized.includes(
+      "good night"
+    ) ||
+    normalized.includes(
+      "goodnight"
+    )
+  ) {
+    action = "go_to_sleep";
+    confidenceLabel = "Direct sleep command";
+  } else if (
     normalized.includes(
       "turn to the right"
     ) ||
@@ -221,9 +303,6 @@ export function classifyVoiceCommand(
     ) ||
     normalized.includes(
       "turn back"
-    ) ||
-    normalized.includes(
-      "back up"
     ) ||
     normalized === "back" ||
     normalized.includes(
@@ -619,6 +698,8 @@ export function useVoiceCommands(
         const results =
           Array.from(event.results);
 
+        
+
         const latest =
           results[results.length - 1];
 
@@ -633,6 +714,14 @@ export function useVoiceCommands(
           classifyVoiceCommand(
             transcript
           );
+
+          console.log(
+  "[voice] heard:",
+  transcript.trim(),
+  "=>",
+  result.action,
+  result.confidenceLabel
+);
 
         setLastTranscript(
           transcript.trim()

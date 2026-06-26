@@ -1,6 +1,7 @@
 export type CustomEmotionSourceMode =
   | "single_image"
-  | "horizontal_spritesheet";
+  | "horizontal_spritesheet"
+  | "grid_spritesheet";
 
 export type CustomEmotionFitMode =
   | "contain"
@@ -15,6 +16,15 @@ export interface ProcessCustomEmotionImageOptions {
   file: File;
   frameCount: number;
   sourceMode: CustomEmotionSourceMode;
+
+  /*
+   * Used only when sourceMode === "grid_spritesheet".
+   * Example:
+   * 13 rows, 5 columns, 63 total frames.
+   */
+  gridRows?: number;
+  gridColumns?: number;
+
   targetFrameSize?: CustomEmotionTargetFrameSize;
   fitMode?: CustomEmotionFitMode;
   background?: "transparent" | "black";
@@ -38,8 +48,12 @@ export const CUSTOM_EMOTION_FRAME_SIZE_OPTIONS:
     ];
 
 const DEFAULT_TARGET_FRAME_SIZE = 64;
+
 const MIN_FRAMES = 1;
-const MAX_FRAMES = 16;
+const MAX_FRAMES = 1024;
+
+const MIN_GRID_SIZE = 1;
+const MAX_GRID_SIZE = 1024;
 
 function normalizeTargetFrameSize(
   value:
@@ -57,21 +71,37 @@ function normalizeTargetFrameSize(
   return DEFAULT_TARGET_FRAME_SIZE;
 }
 
+function clampInteger(
+  value: number,
+  minimum: number,
+  maximum: number,
+  fallback: number
+): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  const rounded =
+    Math.round(value);
+
+  return Math.min(
+    maximum,
+    Math.max(
+      minimum,
+      rounded
+    )
+  );
+}
+
 function clampFrameCount(
   value: number
 ): number {
-  if (
-    !Number.isFinite(value) ||
-    value < MIN_FRAMES
-  ) {
-    return MIN_FRAMES;
-  }
-
-  if (value > MAX_FRAMES) {
-    return MAX_FRAMES;
-  }
-
-  return Math.round(value);
+  return clampInteger(
+    value,
+    MIN_FRAMES,
+    MAX_FRAMES,
+    MIN_FRAMES
+  );
 }
 
 function loadImageFromFile(
@@ -204,11 +234,84 @@ processCustomEmotionImage(
       options.file
     );
 
+  const naturalWidth =
+    image.naturalWidth ||
+    image.width;
+
+  const naturalHeight =
+    image.naturalHeight ||
+    image.height;
+
+  let gridRows = 1;
+  let gridColumns = 1;
+
+  if (
+    sourceMode ===
+    "horizontal_spritesheet"
+  ) {
+    gridRows = 1;
+    gridColumns = frameCount;
+  } else if (
+    sourceMode ===
+    "grid_spritesheet"
+  ) {
+    gridRows =
+      clampInteger(
+        options.gridRows ?? 1,
+        MIN_GRID_SIZE,
+        MAX_GRID_SIZE,
+        1
+      );
+
+    gridColumns =
+      clampInteger(
+        options.gridColumns ?? frameCount,
+        MIN_GRID_SIZE,
+        MAX_GRID_SIZE,
+        frameCount
+      );
+
+    if (
+      gridRows *
+        gridColumns <
+      frameCount
+    ) {
+      throw new Error(
+        "Grid rows × columns must be greater than or equal to the total frame count."
+      );
+    }
+  }
+
+  const sourceFrameWidth =
+    sourceMode === "single_image"
+      ? naturalWidth
+      : naturalWidth / gridColumns;
+
+  const sourceFrameHeight =
+    sourceMode === "single_image"
+      ? naturalHeight
+      : naturalHeight / gridRows;
+
+  if (
+    sourceFrameWidth <= 0 ||
+    sourceFrameHeight <= 0
+  ) {
+    throw new Error(
+      "Invalid source frame size."
+    );
+  }
+
   const canvas =
     document.createElement(
       "canvas"
     );
 
+  /*
+   * Final dashboard sprite format:
+   * one horizontal row.
+   *
+   * The preview/dashboard already expect this shape.
+   */
   canvas.width =
     targetFrameSize *
     frameCount;
@@ -225,13 +328,6 @@ processCustomEmotionImage(
     );
   }
 
-  /*
-   * Keep pixel-art assets sharp when they are
-   * resized. Normal photos still work; they are
-   * just downsampled with nearest-neighbor so the
-   * output remains consistent with the robot-face
-   * sprite style.
-   */
   context.imageSmoothingEnabled =
     false;
 
@@ -252,14 +348,6 @@ processCustomEmotionImage(
     );
   }
 
-  const naturalWidth =
-    image.naturalWidth ||
-    image.width;
-
-  const naturalHeight =
-    image.naturalHeight ||
-    image.height;
-
   for (
     let frameIndex = 0;
     frameIndex < frameCount;
@@ -274,16 +362,31 @@ processCustomEmotionImage(
       naturalHeight;
 
     if (
-      sourceMode ===
-      "horizontal_spritesheet"
+      sourceMode !==
+      "single_image"
     ) {
-      sourceWidth =
-        naturalWidth /
-        frameCount;
+      const row =
+        Math.floor(
+          frameIndex / gridColumns
+        );
+
+      const column =
+        frameIndex %
+        gridColumns;
 
       sourceX =
-        frameIndex *
-        sourceWidth;
+        column *
+        sourceFrameWidth;
+
+      sourceY =
+        row *
+        sourceFrameHeight;
+
+      sourceWidth =
+        sourceFrameWidth;
+
+      sourceHeight =
+        sourceFrameHeight;
     }
 
     const {

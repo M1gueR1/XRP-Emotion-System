@@ -216,6 +216,32 @@ Blockly.Blocks['xrp_arcade'] = {
   }
 };
 
+Blockly.Blocks['xrp_arcade_for_seconds'] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("Drive for seconds");
+    this.appendValueInput("STRAIGHT")
+      .setCheck("Number")
+      .appendField("Straight:");
+    this.appendValueInput("TURN")
+      .setCheck("Number")
+      .appendField("Turn:");
+    this.appendValueInput("SECONDS")
+      .setCheck("Number")
+      .appendField("Seconds:");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(10); // orange
+    this.setTooltip(
+      "Drive using arcade values for a fixed amount of time, " +
+      "keep emotion outputs updating, then stop the motors automatically."
+    );
+    this.setHelpUrl("");
+  }
+};
+
+
 Blockly.Blocks['xrp_stop_motors'] = {
   init: function () {
     this.appendDummyInput()
@@ -1786,6 +1812,9 @@ const XRP_VOICE_COMMAND_DROPDOWN = [
   ["turn right", "turn_right"],
   ["turn left", "turn_left"],
   ["move back", "turn_back"],
+  ["stop", "stop"],
+  ["showtime", "showtime"],
+  ["go to sleep", "go_to_sleep"],
   ["turn happy", "turn_happy"],
   ["turn sad", "turn_sad"],
   ["turn excited", "turn_excited"],

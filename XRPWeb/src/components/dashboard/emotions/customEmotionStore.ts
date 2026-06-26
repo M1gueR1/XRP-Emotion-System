@@ -287,10 +287,12 @@ function validateEmotionInput(
    * The current XPP frame-subset format uses
    * four bits per frame index.
    */
-  if (input.frameCount > 16) {
+  const MAX_DASHBOARD_FRAMES = 1024;
+
+  if (input.frameCount > MAX_DASHBOARD_FRAMES) {
     throw new Error(
-      "The current framework supports " +
-        "a maximum of 16 frames per sprite"
+      "The dashboard supports a maximum of " +
+        `${MAX_DASHBOARD_FRAMES} frames per custom sprite.`
     );
   }
 

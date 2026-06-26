@@ -12,7 +12,6 @@ import {
   createRedVisionSheetFromCustomEmotion,
 } from "./redVisionSheetProcessor";
 
-
 type WebSerialPort = {
   open: (
     options: {
@@ -31,15 +30,12 @@ type WebSerialPort = {
     | null;
 };
 
-
 type NavigatorWithSerial =
   Navigator & {
     serial?: {
-      requestPort: () =>
-        Promise<WebSerialPort>;
+      requestPort: () => Promise<WebSerialPort>;
     };
   };
-
 
 export interface XrpRedVisionUploadProgress {
   stage:
@@ -54,17 +50,20 @@ export interface XrpRedVisionUploadProgress {
   totalBytes: number;
 }
 
-
 export interface UploadCustomEmotionToRedVisionOptions {
   baudRate?: number;
   chunkSizeBytes?: number;
 
+  /*
+   * Zero-based dashboard frame index.
+   * Example: frameIndex 4 uploads frame 5.
+   */
+  frameIndex?: number;
+
   onProgress?: (
-    progress:
-      XrpRedVisionUploadProgress
+    progress: XrpRedVisionUploadProgress
   ) => void;
 }
-
 
 const DEFAULT_BAUD_RATE = 115200;
 
@@ -84,7 +83,6 @@ const CUSTOM_MANIFEST_PATH =
 
 let commandSequenceNumber = 0;
 
-
 function sleep(
   milliseconds: number
 ): Promise<void> {
@@ -98,10 +96,7 @@ function sleep(
   );
 }
 
-
-export async function
-releaseExistingUsbConnectionForRedVisionUpload():
-  Promise<boolean> {
+export async function releaseExistingUsbConnectionForRedVisionUpload(): Promise<boolean> {
   try {
     const appMgr =
       AppMgr.getInstance();
@@ -140,7 +135,6 @@ releaseExistingUsbConnectionForRedVisionUpload():
   return false;
 }
 
-
 function pythonStringLiteral(
   value: string
 ): string {
@@ -150,7 +144,6 @@ function pythonStringLiteral(
    */
   return JSON.stringify(value);
 }
-
 
 function bytesToBase64(
   bytes: Uint8Array
@@ -169,7 +162,6 @@ function bytesToBase64(
 
   return window.btoa(binary);
 }
-
 
 function safeRedVisionFps(
   value: number
@@ -195,35 +187,27 @@ function safeRedVisionFps(
   );
 }
 
-
-function validateWebSerialAvailable():
-  void {
+function validateWebSerialAvailable(): void {
   const navigatorWithSerial =
-    navigator as
-      NavigatorWithSerial;
+    navigator as NavigatorWithSerial;
 
   if (!navigatorWithSerial.serial) {
     throw new Error(
-      "Web Serial is not available. Use Chrome or Edge on localhost/HTTPS."
+      "Web Serial is not available. " +
+        "Use Chrome or Edge on localhost/HTTPS."
     );
   }
 }
 
-
 async function readUntilPrompt(
-  reader:
-    ReadableStreamDefaultReader<
-      Uint8Array
-    >,
+  reader: ReadableStreamDefaultReader<Uint8Array>,
   timeoutMs = 6000
 ): Promise<string> {
   const decoder =
     new TextDecoder();
 
   let output = "";
-
-  const startedAt =
-    Date.now();
+  const startedAt = Date.now();
 
   while (
     Date.now() - startedAt <
@@ -231,10 +215,7 @@ async function readUntilPrompt(
   ) {
     const remaining =
       timeoutMs -
-      (
-        Date.now() -
-        startedAt
-      );
+      (Date.now() - startedAt);
 
     const result =
       await Promise.race([
@@ -253,9 +234,7 @@ async function readUntilPrompt(
       ]);
 
     if (result === "timeout") {
-      if (
-        output.includes(">>>")
-      ) {
+      if (output.includes(">>>")) {
         return output;
       }
 
@@ -273,9 +252,7 @@ async function readUntilPrompt(
       }
     );
 
-    if (
-      output.includes(">>>")
-    ) {
+    if (output.includes(">>>")) {
       return output;
     }
   }
@@ -286,12 +263,8 @@ async function readUntilPrompt(
   );
 }
 
-
 async function readUntilText(
-  reader:
-    ReadableStreamDefaultReader<
-      Uint8Array
-    >,
+  reader: ReadableStreamDefaultReader<Uint8Array>,
   targetText: string,
   timeoutMs = 6000
 ): Promise<string> {
@@ -299,9 +272,7 @@ async function readUntilText(
     new TextDecoder();
 
   let output = "";
-
-  const startedAt =
-    Date.now();
+  const startedAt = Date.now();
 
   while (
     Date.now() - startedAt <
@@ -309,10 +280,7 @@ async function readUntilText(
   ) {
     const remaining =
       timeoutMs -
-      (
-        Date.now() -
-        startedAt
-      );
+      (Date.now() - startedAt);
 
     const result =
       await Promise.race([
@@ -368,16 +336,9 @@ async function readUntilText(
   );
 }
 
-
 async function sendCommand(
-  writer:
-    WritableStreamDefaultWriter<
-      Uint8Array
-    >,
-  reader:
-    ReadableStreamDefaultReader<
-      Uint8Array
-    >,
+  writer: WritableStreamDefaultWriter<Uint8Array>,
+  reader: ReadableStreamDefaultReader<Uint8Array>,
   command: string,
   timeoutMs = 6000
 ): Promise<string> {
@@ -395,16 +356,14 @@ async function sendCommand(
    * the final UPLOAD_OK confirmation reliable.
    */
   const wrappedCommand =
-    (
-      "exec(" +
-      pythonStringLiteral(
-        command +
-          "\nprint(" +
-          pythonStringLiteral(marker) +
-          ")"
-      ) +
-      ")"
-    );
+    "exec(" +
+    pythonStringLiteral(
+      command +
+        "\nprint(" +
+        pythonStringLiteral(marker) +
+        ")"
+    ) +
+    ")";
 
   await writer.write(
     encoder.encode(
@@ -433,16 +392,9 @@ async function sendCommand(
   return output;
 }
 
-
 async function enterMicroPythonPrompt(
-  writer:
-    WritableStreamDefaultWriter<
-      Uint8Array
-    >,
-  reader:
-    ReadableStreamDefaultReader<
-      Uint8Array
-    >
+  writer: WritableStreamDefaultWriter<Uint8Array>,
+  reader: ReadableStreamDefaultReader<Uint8Array>
 ): Promise<void> {
   const encoder =
     new TextEncoder();
@@ -470,7 +422,6 @@ async function enterMicroPythonPrompt(
   );
 }
 
-
 function makeSetupScript(
   temporaryPath: string
 ): string {
@@ -478,18 +429,17 @@ function makeSetupScript(
     "import os, ujson, ubinascii",
     `directory = ${pythonStringLiteral(CUSTOM_SHEETS_DIRECTORY)}`,
     "try:",
-    "    os.mkdir(directory)",
+    " os.mkdir(directory)",
     "except OSError:",
-    "    pass",
+    " pass",
     `temporary_path = ${pythonStringLiteral(temporaryPath)}`,
     "try:",
-    "    os.remove(temporary_path)",
+    " os.remove(temporary_path)",
     "except OSError:",
-    "    pass",
+    " pass",
     "upload_file = open(temporary_path, 'wb')",
   ].join("\n");
 }
-
 
 function makeRenameScript(
   finalPath: string,
@@ -499,26 +449,24 @@ function makeRenameScript(
     `final_path = ${pythonStringLiteral(finalPath)}`,
     `temporary_path = ${pythonStringLiteral(temporaryPath)}`,
     "try:",
-    "    os.remove(final_path)",
+    " os.remove(final_path)",
     "except OSError:",
-    "    pass",
+    " pass",
     "os.rename(temporary_path, final_path)",
   ].join("\n");
 }
-
 
 function makeManifestReadScript(): string {
   return [
     `manifest_path = ${pythonStringLiteral(CUSTOM_MANIFEST_PATH)}`,
     "try:",
-    "    manifest_file = open(manifest_path, 'r')",
-    "    manifest = ujson.loads(manifest_file.read())",
-    "    manifest_file.close()",
+    " manifest_file = open(manifest_path, 'r')",
+    " manifest = ujson.loads(manifest_file.read())",
+    " manifest_file.close()",
     "except Exception:",
-    "    manifest = {}",
+    " manifest = {}",
   ].join("\n");
 }
-
 
 function makeManifestEntryCommand(
   emotionName: string,
@@ -536,7 +484,6 @@ function makeManifestEntryCommand(
   );
 }
 
-
 function makeManifestWriteCommand(
   emotionName: string
 ): string {
@@ -544,22 +491,17 @@ function makeManifestWriteCommand(
     "manifest_file = open(manifest_path, 'w')",
     "manifest_file.write(ujson.dumps(manifest))",
     "manifest_file.close()",
-    (
-      "print(" +
+    "print(" +
       pythonStringLiteral(
         `UPLOAD_OK ${emotionName}`
       ) +
-      ")"
-    ),
+      ")",
   ].join("; ");
 }
 
-
-export async function
-uploadCustomEmotionToRedVision(
+export async function uploadCustomEmotionToRedVision(
   emotion: CustomEmotionRecord,
-  options:
-    UploadCustomEmotionToRedVisionOptions = {}
+  options: UploadCustomEmotionToRedVisionOptions = {}
 ): Promise<void> {
   validateWebSerialAvailable();
 
@@ -572,8 +514,7 @@ uploadCustomEmotionToRedVision(
     DEFAULT_CHUNK_SIZE_BYTES;
 
   const report = (
-    progress:
-      XrpRedVisionUploadProgress
+    progress: XrpRedVisionUploadProgress
   ) => {
     options.onProgress?.(
       progress
@@ -582,15 +523,18 @@ uploadCustomEmotionToRedVision(
 
   report({
     stage: "preparing",
-    message:
-      "Preparing Red Vision sheet...",
+    message: "Preparing Red Vision sheet...",
     sentBytes: 0,
     totalBytes: 0,
   });
 
   const redVisionSheet =
     await createRedVisionSheetFromCustomEmotion(
-      emotion
+      emotion,
+      {
+        frameIndex:
+          options.frameIndex,
+      }
     );
 
   const arrayBuffer =
@@ -621,7 +565,15 @@ uploadCustomEmotionToRedVision(
   report({
     stage: "connecting",
     message:
-      "Releasing existing XRP USB connection...",
+      `Preparing frame ${redVisionSheet.selectedFrameIndex + 1} ` +
+      `of ${emotion.frameCount} for Red Vision...`,
+    sentBytes: 0,
+    totalBytes,
+  });
+
+  report({
+    stage: "connecting",
+    message: "Releasing existing XRP USB connection...",
     sentBytes: 0,
     totalBytes,
   });
@@ -630,15 +582,13 @@ uploadCustomEmotionToRedVision(
 
   report({
     stage: "connecting",
-    message:
-      "Select the XRP USB serial port...",
+    message: "Select the XRP USB serial port...",
     sentBytes: 0,
     totalBytes,
   });
 
   const navigatorWithSerial =
-    navigator as
-      NavigatorWithSerial;
+    navigator as NavigatorWithSerial;
 
   const port =
     await navigatorWithSerial.serial!.requestPort();
@@ -654,7 +604,8 @@ uploadCustomEmotionToRedVision(
         : "";
 
     if (
-      errorName === "InvalidStateError"
+      errorName ===
+      "InvalidStateError"
     ) {
       throw new Error(
         "The XRP USB port is already open. " +
@@ -686,8 +637,7 @@ uploadCustomEmotionToRedVision(
   try {
     report({
       stage: "connecting",
-      message:
-        "Entering MicroPython prompt...",
+      message: "Entering MicroPython prompt...",
       sentBytes: 0,
       totalBytes,
     });
@@ -699,8 +649,7 @@ uploadCustomEmotionToRedVision(
 
     report({
       stage: "preparing",
-      message:
-        "Creating XRP destination file...",
+      message: "Creating XRP destination file...",
       sentBytes: 0,
       totalBytes,
     });
@@ -725,14 +674,13 @@ uploadCustomEmotionToRedVision(
       offset < bytes.length;
       offset += chunkSizeBytes
     ) {
-      const chunk =
-        bytes.slice(
-          offset,
-          Math.min(
-            offset + chunkSizeBytes,
-            bytes.length
-          )
-        );
+      const chunk = bytes.slice(
+        offset,
+        Math.min(
+          offset + chunkSizeBytes,
+          bytes.length
+        )
+      );
 
       const base64Chunk =
         bytesToBase64(
@@ -750,8 +698,7 @@ uploadCustomEmotionToRedVision(
         8000
       );
 
-      sentBytes +=
-        chunk.length;
+      sentBytes += chunk.length;
 
       report({
         stage: "uploading",
@@ -769,8 +716,7 @@ uploadCustomEmotionToRedVision(
 
     report({
       stage: "finalizing",
-      message:
-        "Saving manifest on XRP...",
+      message: "Saving manifest on XRP...",
       sentBytes: totalBytes,
       totalBytes,
     });
@@ -849,7 +795,9 @@ uploadCustomEmotionToRedVision(
     report({
       stage: "done",
       message:
-        `Uploaded ${emotionName} to XRP Red Vision.`,
+        `Uploaded ${emotionName} frame ` +
+        `${redVisionSheet.selectedFrameIndex + 1} ` +
+        `to XRP Red Vision.`,
       sentBytes: totalBytes,
       totalBytes,
     });
@@ -857,17 +805,13 @@ uploadCustomEmotionToRedVision(
     try {
       reader.releaseLock();
     } catch {
-      /*
-       * Ignore cleanup errors.
-       */
+      /* Ignore cleanup errors. */
     }
 
     try {
       writer.releaseLock();
     } catch {
-      /*
-       * Ignore cleanup errors.
-       */
+      /* Ignore cleanup errors. */
     }
 
     await port.close();

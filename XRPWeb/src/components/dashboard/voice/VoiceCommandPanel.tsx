@@ -25,12 +25,22 @@ function actionLabel(
       return "Turn right";
     case "turn_left":
       return "Turn left";
+    case "turn_back":
+      return "Move back";
     case "turn_happy":
       return "Turn happy";
     case "turn_sad":
       return "Turn sad";
     case "turn_excited":
       return "Turn excited";
+    case "turn_in_love":
+      return "Turn in love";
+    case "stop":
+      return "Stop";
+    case "showtime":
+      return "Showtime";
+    case "go_to_sleep":
+      return "Go to sleep";
     case "unknown":
       return "Unknown";
     default:

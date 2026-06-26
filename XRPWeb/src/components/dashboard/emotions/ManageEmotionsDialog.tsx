@@ -68,6 +68,12 @@ const REPEAT_MODE_HELP:
       "Plays forward and then backward continuously.",
   };
 
+const MIN_CUSTOM_FRAMES = 1;
+const MAX_CUSTOM_FRAMES = 1024;
+
+const MIN_GRID_SIZE = 1;
+const MAX_GRID_SIZE = 1024;
+
 
 type ManageEmotionsDialogProps = {
   isOpen: boolean;
@@ -334,6 +340,16 @@ function ManageEmotionsDialog({
   ] = useState(4);
 
   const [
+    gridRows,
+    setGridRows,
+  ] = useState(1);
+
+  const [
+    gridColumns,
+    setGridColumns,
+  ] = useState(1);
+
+  const [
     defaultFps,
     setDefaultFps,
   ] = useState(6);
@@ -457,6 +473,8 @@ function ManageEmotionsDialog({
         setSheetHeight(0);
 
         setFrameCount(1);
+        setGridRows(1);
+        setGridColumns(1);
         setDefaultFps(8);
 
         setRepeatMode("loop");
@@ -513,6 +531,8 @@ function ManageEmotionsDialog({
             file: sourceImageFile!,
             frameCount,
             sourceMode,
+            gridRows,
+            gridColumns,
             fitMode,
             targetFrameSize,
             background: "transparent",
@@ -559,6 +579,8 @@ function ManageEmotionsDialog({
     sourceImageFile,
     frameCount,
     sourceMode,
+    gridRows,
+    gridColumns,
     fitMode,
     targetFrameSize,
   ]);
@@ -785,6 +807,17 @@ function ManageEmotionsDialog({
     }
 
     if (
+      sourceMode === "grid_spritesheet" &&
+      gridRows * gridColumns < frameCount
+    ) {
+      setErrorMessage(
+        "Grid rows × columns must be greater than or equal to total frames."
+      );
+
+      return;
+    }
+
+    if (
       sheetWidth % frameCount !== 0
     ) {
       setErrorMessage(
@@ -906,6 +939,13 @@ function ManageEmotionsDialog({
     setSourceMode(
       "horizontal_spritesheet"
     );
+
+    setGridRows(1);
+
+    setGridColumns(
+      record.frameCount
+    );
+
     setFitMode("contain");
 
     setSpriteFileName(
@@ -1102,9 +1142,10 @@ function ManageEmotionsDialog({
             </h1>
 
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Upload any image or horizontal
-              spritesheet. XRPWeb converts it to
-              64×64 frames for the dashboard.
+              Upload any image, horizontal
+              spritesheet or grid spritesheet.
+              XRPWeb converts it to dashboard
+              frames automatically.
             </p>
           </div>
 
@@ -1198,13 +1239,17 @@ function ManageEmotionsDialog({
                     <option value="horizontal_spritesheet">
                       Horizontal spritesheet
                     </option>
+
+                    <option value="grid_spritesheet">
+                      Grid spritesheet
+                    </option>
                   </select>
 
                   <span className="text-xs leading-5 text-slate-500 dark:text-slate-400">
-                    Single image repeats the same
-                    converted frame. Horizontal
-                    spritesheet splits the image into
-                    the selected number of frames.
+                    Single image repeats one converted
+                    frame. Horizontal spritesheet splits
+                    one row. Grid spritesheet uses rows,
+                    columns and total frames.
                   </span>
                 </label>
 
@@ -1267,12 +1312,12 @@ function ManageEmotionsDialog({
                 </label>
 
                 <label className="flex flex-col gap-1 text-sm">
-                  Frame count
+                  Total frames
 
                   <input
                     type="number"
-                    min={1}
-                    max={16}
+                    min={MIN_CUSTOM_FRAMES}
+                    max={MAX_CUSTOM_FRAMES}
                     step={1}
                     value={frameCount}
                     onChange={(event) => {
@@ -1281,8 +1326,8 @@ function ManageEmotionsDialog({
                           Number(
                             event.target.value
                           ),
-                          1,
-                          16,
+                          MIN_CUSTOM_FRAMES,
+                          MAX_CUSTOM_FRAMES,
                           1
                         )
                       );
@@ -1290,7 +1335,68 @@ function ManageEmotionsDialog({
                     required
                     className="rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900"
                   />
+
+                  <span className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+                    Maximum {MAX_CUSTOM_FRAMES} frames for
+                    dashboard playback.
+                  </span>
                 </label>
+
+                {sourceMode === "grid_spritesheet" && (
+                  <>
+                    <label className="flex flex-col gap-1 text-sm">
+                      Grid rows
+
+                      <input
+                        type="number"
+                        min={MIN_GRID_SIZE}
+                        max={MAX_GRID_SIZE}
+                        step={1}
+                        value={gridRows}
+                        onChange={(event) => {
+                          setGridRows(
+                            clampInteger(
+                              Number(
+                                event.target.value
+                              ),
+                              MIN_GRID_SIZE,
+                              MAX_GRID_SIZE,
+                              1
+                            )
+                          );
+                        }}
+                        required
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900"
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-1 text-sm">
+                      Grid columns
+
+                      <input
+                        type="number"
+                        min={MIN_GRID_SIZE}
+                        max={MAX_GRID_SIZE}
+                        step={1}
+                        value={gridColumns}
+                        onChange={(event) => {
+                          setGridColumns(
+                            clampInteger(
+                              Number(
+                                event.target.value
+                              ),
+                              MIN_GRID_SIZE,
+                              MAX_GRID_SIZE,
+                              1
+                            )
+                          );
+                        }}
+                        required
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900"
+                      />
+                    </label>
+                  </>
+                )}
 
                 <label className="flex flex-col gap-1 text-sm">
                   Default FPS
@@ -1392,6 +1498,14 @@ function ManageEmotionsDialog({
                   {targetFrameSize} × {targetFrameSize}
                 </div>
 
+                {sourceMode === "grid_spritesheet" && (
+                  <div>
+                    Source grid:{" "}
+                    {gridRows} rows × {gridColumns} columns
+                    · {frameCount} used frames
+                  </div>
+                )}
+
                 <div>
                   Calculated frame size:{" "}
                   {calculatedFrameWidth > 0
@@ -1400,9 +1514,9 @@ function ManageEmotionsDialog({
                 </div>
 
                 <div className="mt-1 text-xs text-slate-500">
-                  The saved sprite is always
-                  processed as 64×64 frames in one
-                  horizontal row.
+                  The saved dashboard sprite is always
+                  processed into one horizontal row,
+                  even if the uploaded source is a grid.
                 </div>
               </div>
             </section>
