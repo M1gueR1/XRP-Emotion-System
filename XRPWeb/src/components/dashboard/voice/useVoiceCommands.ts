@@ -69,6 +69,7 @@ export type VoiceCommandAction =
   | "stop"
   | "showtime"
   | "go_to_sleep"
+  | "lets_play"
   | "unknown";
 
 
@@ -202,6 +203,35 @@ export function classifyVoiceCommand(
   ) {
     action = "stop";
     confidenceLabel = "Direct stop command";
+  } else if (
+    normalized.includes(
+      "lets play"
+    ) ||
+    normalized.includes(
+      "let us play"
+    ) ||
+    normalized.includes(
+      "lets go to the challenge"
+    ) ||
+    normalized.includes(
+      "let us go to the challenge"
+    ) ||
+    normalized.includes(
+      "lets go challenge"
+    ) ||
+    normalized.includes(
+      "go to the challenge"
+    ) ||
+    normalized.includes(
+      "start challenge"
+    ) ||
+    normalized.includes(
+      "start the challenge"
+    ) ||
+    normalized === "challenge"
+  ) {
+    action = "lets_play";
+    confidenceLabel = "Direct challenge command";
   } else if (
     normalized.includes(
       "showtime"

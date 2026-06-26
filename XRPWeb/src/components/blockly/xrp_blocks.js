@@ -719,6 +719,34 @@ Blockly.Blocks['xrp_emotion_set'] = {
 };
 
 
+Blockly.Blocks['xrp_emotion_current_is'] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("Current emotion")
+      .appendField(
+        new Blockly.FieldDropdown([
+          ["is", "IS"],
+          ["is not", "IS_NOT"],
+        ]),
+        "OP"
+      )
+      .appendField(
+        new Blockly.FieldDropdown(
+          getPlayableEmotionDropdownOptions
+        ),
+        "EMOTION"
+      );
+
+    this.setOutput(true, "Boolean");
+    this.setColour("#00a6a6");
+    this.setTooltip(
+      "Checks the last emotion requested by a Set emotion block. Useful to avoid setting the same emotion repeatedly."
+    );
+    this.setHelpUrl("");
+  },
+};
+
+
 Blockly.Blocks['xrp_emotion_run'] = {
   init: function () {
     this.appendDummyInput()
@@ -1815,6 +1843,7 @@ const XRP_VOICE_COMMAND_DROPDOWN = [
   ["stop", "stop"],
   ["showtime", "showtime"],
   ["go to sleep", "go_to_sleep"],
+  ["let\'s play", "lets_play"],
   ["turn happy", "turn_happy"],
   ["turn sad", "turn_sad"],
   ["turn excited", "turn_excited"],

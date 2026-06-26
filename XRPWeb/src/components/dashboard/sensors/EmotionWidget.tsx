@@ -793,6 +793,20 @@ const repeatCount =
         return;
       }
 
+      if (action === "lets_play") {
+        if (voicePreviewEnabled) {
+          applyDashboardVoiceEmotion(
+            VOICE_EXCITED_EMOTION_ID
+          );
+        }
+
+        await sendVoiceRuntimeCommandToXrp(
+          action
+        );
+
+        return;
+      }
+
       if (action === "stop") {
         if (voicePreviewEnabled) {
           applyDashboardVoiceEmotion(

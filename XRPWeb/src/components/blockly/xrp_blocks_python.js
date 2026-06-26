@@ -431,6 +431,28 @@ function ensureEmotionRegistration(
   return catalogEntry.emotionId;
 }
 
+
+function setupEmotionStateTrackerGenerator() {
+  setupEmotionGenerator();
+
+  pythonGenerator.definitions_[
+    "xrp_emotion_state_tracker"
+  ] = [
+    "xrp_current_emotion_name = None",
+    "",
+    "def xrp_set_emotion(emotion_name, force_reset=False):",
+    "    global xrp_current_emotion_name",
+    "    emotion.set_emotion(",
+    "        emotion_name,",
+    "        force_reset=force_reset,",
+    "    )",
+    "    xrp_current_emotion_name = emotion_name",
+    "",
+    "def xrp_current_emotion_is(emotion_name):",
+    "    return xrp_current_emotion_name == emotion_name",
+  ].join("\n");
+}
+
 function emotionPythonBoolean(value) {
   return (
     value === true ||
@@ -1110,7 +1132,7 @@ pythonGenerator.forBlock[
 
 
 pythonGenerator.forBlock['xrp_emotion_set'] = function (block) {
-  setupEmotionGenerator();
+  setupEmotionStateTrackerGenerator();
 
   const emotionName =
     block.getFieldValue("EMOTION");
@@ -1123,10 +1145,35 @@ pythonGenerator.forBlock['xrp_emotion_set'] = function (block) {
     block.getFieldValue("FORCE_RESET");
 
   const code =
-    `emotion.set_emotion("${emotionName}", ` +
+    `xrp_set_emotion("${emotionName}", ` +
     `force_reset=${forceReset})\n`;
 
   return code;
+};
+
+
+pythonGenerator.forBlock['xrp_emotion_current_is'] = function (block) {
+  setupEmotionStateTrackerGenerator();
+
+  const emotionName =
+    block.getFieldValue("EMOTION");
+
+  ensureEmotionRegistration(
+    emotionName
+  );
+
+  const op =
+    block.getFieldValue("OP");
+
+  const code =
+    op === "IS_NOT"
+      ? `not xrp_current_emotion_is("${emotionName}")`
+      : `xrp_current_emotion_is("${emotionName}")`;
+
+  return [
+    code,
+    pythonGenerator.ORDER_LOGICAL_NOT,
+  ];
 };
 
 

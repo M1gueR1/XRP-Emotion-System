@@ -21,9 +21,14 @@ const VOICE_RUNTIME_COMMANDS: Record<
   turn_left: "V:L",
   turn_back: "V:B",
 
+  /*
+   * Keep V:S reserved for turn_sad.
+   * Use separate tokens for runtime macros/safety.
+   */
   stop: "V:X",
   showtime: "V:D",
   go_to_sleep: "V:Z",
+  lets_play: "V:P",
 };
 
 
@@ -50,28 +55,7 @@ export async function sendVoiceRuntimeCommandToXrp(
   }
 
   const command =
-    VOICE_RUNTIME_COMMANDS[
-      action
-    ];
-
-  if (!command) {
-    throw new Error(
-      `No XRP runtime command mapped for voice action: ${action}`
-    );
-  }
-
-  console.log(
-    "Sending voice runtime command to XRP:",
-    action,
-    command
-  );
-
-
-  console.log(
-    "[voice-xrp] sending:",
-    action,
-    command
-  );
+    VOICE_RUNTIME_COMMANDS[action];
 
   await connection.writeToDevice(
     `${command}\n`

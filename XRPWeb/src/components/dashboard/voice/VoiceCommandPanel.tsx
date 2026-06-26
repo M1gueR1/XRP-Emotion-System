@@ -41,6 +41,8 @@ function actionLabel(
       return "Showtime";
     case "go_to_sleep":
       return "Go to sleep";
+    case "lets_play":
+      return "Let's play";
     case "unknown":
       return "Unknown";
     default:
@@ -137,6 +139,11 @@ function VoiceCommandPanel({
             </span>
           </div>
         </div>
+      </div>
+
+      <div className="mt-2 rounded-lg bg-slate-50 px-2 py-1.5 text-[11px] leading-5 text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+        Try: Hello XRP · Are you ready? · I'm really happy · Turn left ·
+        Turn right · Move back · Stop · Showtime · Go to sleep
       </div>
 
       {(errorMessage || commandError) && (

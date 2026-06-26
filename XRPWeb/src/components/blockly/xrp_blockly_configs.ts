@@ -304,6 +304,10 @@ const ToolboxJson = {
                 },
                 {
                 "kind": "BLOCK",
+                "type": "xrp_emotion_current_is"
+                },
+                {
+                "kind": "BLOCK",
                 "type": "xrp_emotion_run"
                 },
                 {
