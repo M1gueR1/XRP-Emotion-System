@@ -21,6 +21,8 @@ import ManageEmotionsDialog from
 import VoiceCommandPanel from
   "../voice/VoiceCommandPanel";
 
+
+
 import type {
   VoiceCommandAction,
   VoiceCommandResult,
@@ -54,6 +56,9 @@ const VOICE_HAPPY_EMOTION_ID = 1;
 const VOICE_EXCITED_EMOTION_ID = 3;
 const VOICE_SAD_EMOTION_ID = 9;
 const VOICE_IN_LOVE_EMOTION_ID = 12;
+const VOICE_IDLE_EMOTION_ID = 0;
+
+const VOICE_UPSET_EMOTION_ID = 8;
 
 const DASHBOARD_IDLE_EMOTION_ID = 0;
 const DASHBOARD_HAPPY_EMOTION_ID = 1;
@@ -67,8 +72,6 @@ const DASHBOARD_FPS_OVERRIDES: Record<
   [DASHBOARD_HAPPY_EMOTION_ID]: 25,
   [DASHBOARD_SAD_EMOTION_ID]: 20,
 };
-
-
 
 
 const unpackFrameSubset = (
@@ -215,6 +218,7 @@ const suppressNextAutoSoundRef =
     voicePreviewEnabled,
     setVoicePreviewEnabled,
   ] = useState(false);
+
 
   const lastRobotEmotionEventRef =
     useRef<string | null>(null);
@@ -731,6 +735,45 @@ const repeatCount =
     };
 
 
+  useEffect(() => {
+    const handleCameraEmotionPreview = (
+      event: Event
+    ): void => {
+      const detail = (
+        event as CustomEvent<{
+          emotionId?: number;
+        }>
+      ).detail;
+
+      if (
+        typeof detail?.emotionId !==
+        "number"
+      ) {
+        return;
+      }
+
+      applyDashboardVoiceEmotion(
+        detail.emotionId
+      );
+    };
+
+    window.addEventListener(
+      "xrp:dashboard-emotion-preview",
+      handleCameraEmotionPreview
+    );
+
+    return () => {
+      window.removeEventListener(
+        "xrp:dashboard-emotion-preview",
+        handleCameraEmotionPreview
+      );
+    };
+
+    // Camera preview events only use React state setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
   const playRepeatedVoiceEmotionSound =
     async (
       emotionId: number,
@@ -839,7 +882,11 @@ const repeatCount =
     async (
       action: VoiceCommandAction,
       emotionId: number,
-      result?: VoiceCommandResult
+      result?: VoiceCommandResult,
+      options: {
+        forceDashboardPreview?: boolean;
+        skipRuntimeCommand?: boolean;
+      } = {}
     ): Promise<void> => {
       const safeRepeatCount =
         Math.min(
@@ -856,6 +903,7 @@ const repeatCount =
         );
 
       const shouldPulseDashboard =
+        options.forceDashboardPreview ||
         voicePreviewEnabled ||
         activeEmotionId === emotionId ||
         safeRepeatCount > 1;
@@ -876,7 +924,10 @@ const repeatCount =
         safeRepeatCount
       );
 
-      if (!shouldForwardToXrp) {
+      if (
+        !shouldForwardToXrp ||
+        options.skipRuntimeCommand
+      ) {
         return;
       }
 
@@ -895,6 +946,34 @@ const repeatCount =
         "[voice-panel] command:",
         action
       );
+
+      if (action === "turn_idle") {
+        await handleEmotionVoiceCommand(
+          action,
+          VOICE_IDLE_EMOTION_ID,
+          result,
+          {
+            forceDashboardPreview: true,
+            skipRuntimeCommand: true,
+          }
+        );
+
+        return;
+      }
+
+      if (action === "turn_upset") {
+        await handleEmotionVoiceCommand(
+          action,
+          VOICE_UPSET_EMOTION_ID,
+          result,
+          {
+            forceDashboardPreview: true,
+            skipRuntimeCommand: true,
+          }
+        );
+
+        return;
+      }
 
       if (action === "turn_happy") {
         await handleEmotionVoiceCommand(

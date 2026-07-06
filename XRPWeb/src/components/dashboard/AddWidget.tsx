@@ -2,7 +2,7 @@ import React from "react";
 import { useGridStackContext } from "./lib/grid-stack-context";
 import { Dropdown, DropdownItem } from "flowbite-react";
 import { MdSpeed } from 'react-icons/md';
-import { FaBatteryHalf, FaBolt, FaCog, FaEye, FaGlobe, FaPlug, FaPlus, FaSlidersH, FaRobot } from 'react-icons/fa';
+import { FaBatteryHalf, FaBolt, FaCamera, FaCog, FaEye, FaGlobe, FaPlug, FaPlus, FaSlidersH, FaRobot } from 'react-icons/fa';
 import { BsRulers } from 'react-icons/bs';
 import { FlowBiteConstants } from "@/utils/constants";
 import { useTranslation } from "react-i18next";
@@ -30,15 +30,25 @@ const BUILTIN_SENSORS: BuiltinSensorDef[] = [
   { action: 'rangefinder', icon: BsRulers, titleKey: 'rangefinder', gridH: 8, gridW: 4, minW: 2, minH: 8, componentName: 'Rangefinder' },
   { action: 'voltage', icon: FaBatteryHalf, titleKey: 'voltage', gridH: 6, gridW: 4, minW: 2, minH: 6, componentName: 'Voltage' },
   {
-  action: "emotion",
-  icon: FaRobot,
-  titleKey: "Emotion Face",
-  gridH: 7,
-  gridW: 4,
-  minW: 3,
-  minH: 6,
-  componentName: "EmotionWidget",
-},
+    action: "emotion",
+    icon: FaRobot,
+    titleKey: "Emotion Face",
+    gridH: 7,
+    gridW: 4,
+    minW: 3,
+    minH: 6,
+    componentName: "EmotionWidget",
+  },
+  {
+    action: "cameraVision",
+    icon: FaCamera,
+    titleKey: "Camera Vision",
+    gridH: 8,
+    gridW: 5,
+    minW: 3,
+    minH: 6,
+    componentName: "CameraVisionWidget",
+  },
 ];
 
 const AddWidgets: React.FC = () => {

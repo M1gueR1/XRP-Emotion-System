@@ -9,6 +9,7 @@ import {
   Voltage,
   EmotionWidget,
 } from "./sensors";
+import CameraVisionWidget from "./sensors/CameraVisionWidget";
 import CustomXPPSensor from "./sensors/CustomXPPSensor";
 import CustomVariableWidget from "./sensors/CustomVariableWidget";
 import { getCustomSensor } from "./sensors/customRegistry";
@@ -47,6 +48,7 @@ const COMPONENT_MAP = {
   Voltage: () => <Voltage />,
   Rangefinder: () => <Rangefinder />,
   EmotionWidget: () => <EmotionWidget />,
+  CameraVisionWidget: () => <CameraVisionWidget />,
   CustomSensor: ({ sensorName }: { sensorName: string }) => {
     const def = getCustomSensor(sensorName);
     if (!def) {
@@ -193,3 +195,4 @@ export default function XRPDashboard() {
     </div>
   );
 }
+  

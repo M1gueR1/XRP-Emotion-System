@@ -5,11 +5,28 @@ import type {
 } from "./useVoiceCommands";
 
 
-const VOICE_RUNTIME_COMMANDS: Record<
+type RuntimeVoiceCommandAction =
   Exclude<
     VoiceCommandAction,
-    "unknown"
-  >,
+    | "unknown"
+    | "turn_idle"
+    | "turn_upset"
+  >;
+
+
+function isRuntimeVoiceCommandAction(
+  action: VoiceCommandAction
+): action is RuntimeVoiceCommandAction {
+  return (
+    action !== "unknown" &&
+    action !== "turn_idle" &&
+    action !== "turn_upset"
+  );
+}
+
+
+const VOICE_RUNTIME_COMMANDS: Record<
+  RuntimeVoiceCommandAction,
   string
 > = {
   turn_happy: "V:H",
@@ -35,7 +52,11 @@ const VOICE_RUNTIME_COMMANDS: Record<
 export async function sendVoiceRuntimeCommandToXrp(
   action: VoiceCommandAction
 ): Promise<void> {
-  if (action === "unknown") {
+  if (
+    !isRuntimeVoiceCommandAction(
+      action
+    )
+  ) {
     return;
   }
 
@@ -58,6 +79,7 @@ export async function sendVoiceRuntimeCommandToXrp(
     VOICE_RUNTIME_COMMANDS[action];
 
   await connection.writeToDevice(
-    `${command}\n`
+    `${command}
+`
   );
 }
