@@ -17,6 +17,12 @@ import {
   warmupAdvancedEmotionReasoner,
 } from "./advancedEmotionReasoner";
 
+import {
+  findMatchingCustomEmotionKeyword,
+  getEmotionOptionByKey,
+  type CustomEmotionKeywordMatch,
+} from "../keywords/customEmotionKeywordStore";
+  
 
 import type {
   VoiceCommandAction,
@@ -126,6 +132,88 @@ function getSpeechRecognitionConstructor():
     speechWindow.webkitSpeechRecognition ??
     null
   );
+}
+
+
+function actionForCustomKeyword(
+  emotionKey: string
+): VoiceCommandAction {
+  switch (emotionKey) {
+    case "idle":
+      return "turn_idle";
+
+    case "happy":
+      return "turn_happy";
+
+    case "sad":
+      return "turn_sad";
+
+    case "excited":
+      return "turn_excited";
+
+    case "in_love":
+      return "turn_in_love";
+
+    case "upset":
+      return "turn_upset";
+
+    default:
+      return "unknown";
+  }
+}
+
+
+function createCustomVoiceKeywordResult(
+  transcript: string,
+  match: CustomEmotionKeywordMatch
+): VoiceCommandResult {
+  const emotionOption =
+    getEmotionOptionByKey(
+      match.rule.emotionKey
+    );
+
+  return {
+    transcript:
+      transcript.trim(),
+
+    action:
+      actionForCustomKeyword(
+        match.rule.emotionKey
+      ),
+
+    confidenceLabel:
+      `Custom voice keyword matched "${match.rule.phrase}".`,
+
+    repeatCount:
+      1,
+
+    source:
+      "custom_voice_keyword" as VoiceCommandResult["source"],
+
+    matchedRuleId:
+      `custom_voice_keyword.${match.rule.id}`,
+
+    intentLabel:
+      emotionOption.label,
+
+    intentCategory:
+      "emotion",
+
+    confidenceScore:
+      Math.min(
+        Math.max(
+          match.rule.priority / 100,
+          0.65
+        ),
+        0.99
+      ),
+
+    contextReason:
+      `The spoken phrase matched the custom voice keyword "${match.rule.phrase}", so the robot selected ${emotionOption.label}.`,
+
+    decisionReason:
+      `Custom voice keyword "${match.rule.phrase}" has priority over the default voice intent engine.`,
+  };
 }
 
 
@@ -263,47 +351,69 @@ export function useVoiceCommands(
           trimmedTranscript
         );
 
-        const semanticEnabled =
-          optionsRef.current.semanticEnabled ??
-          true;
-
-        const advancedReasoningEnabled =
-          optionsRef.current.advancedReasoningEnabled ??
-          false;
-
-        if (
-          semanticEnabled &&
-          semanticModelStatus !== "ready"
-        ) {
-          setIsSemanticModelBusy(true);
-        }
-
         let result:
           VoiceCommandResult;
 
-        try {
+        /*
+         * Custom voice keywords are checked first.
+         *
+         * Example:
+         * - Teacher/student adds: electricity -> Excited
+         * - Microphone hears: "electricity"
+         * - Robot immediately selects Excited without needing
+         *   semantic ML or hardcoded intent rules.
+         */
+        const customVoiceKeywordMatch =
+          findMatchingCustomEmotionKeyword(
+            trimmedTranscript
+          );
+
+        if (customVoiceKeywordMatch) {
           result =
-            await classifyVoiceCommandWithSemantic(
+            createCustomVoiceKeywordResult(
               trimmedTranscript,
-              {
-                semanticEnabled,
-                advancedReasoningEnabled,
-              }
+              customVoiceKeywordMatch
             );
+        } else {
+          const semanticEnabled =
+            optionsRef.current.semanticEnabled ??
+            true;
+
+          const advancedReasoningEnabled =
+            optionsRef.current.advancedReasoningEnabled ??
+            false;
 
           if (
-            result.source === "semantic_ml"
+            semanticEnabled &&
+            semanticModelStatus !== "ready"
           ) {
-            setSemanticModelStatus(
-              "ready"
-            );
+            setIsSemanticModelBusy(true);
           }
-        } finally {
-          if (
-            classifyRequestIdRef.current ===
-            requestId
-          ) {
-            setIsSemanticModelBusy(false);
+
+          try {
+            result =
+              await classifyVoiceCommandWithSemantic(
+                trimmedTranscript,
+                {
+                  semanticEnabled,
+                  advancedReasoningEnabled,
+                }
+              );
+
+            if (
+              result.source === "semantic_ml"
+            ) {
+              setSemanticModelStatus(
+                "ready"
+              );
+            }
+          } finally {
+            if (
+              classifyRequestIdRef.current ===
+              requestId
+            ) {
+              setIsSemanticModelBusy(false);
+            }
           }
         }
 

@@ -10,6 +10,9 @@ import {
   EmotionWidget,
 } from "./sensors";
 import CameraVisionWidget from "./sensors/CameraVisionWidget";
+import UserProfileMemoryWidget from "./sensors/UserProfileMemoryWidget";
+import RobotChatWidget from "./sensors/RobotChatWidget";
+import CustomEmotionKeywordsWidget from "./sensors/CustomEmotionKeywordsWidget";
 import CustomXPPSensor from "./sensors/CustomXPPSensor";
 import CustomVariableWidget from "./sensors/CustomVariableWidget";
 import { getCustomSensor } from "./sensors/customRegistry";
@@ -49,6 +52,9 @@ const COMPONENT_MAP = {
   Rangefinder: () => <Rangefinder />,
   EmotionWidget: () => <EmotionWidget />,
   CameraVisionWidget: () => <CameraVisionWidget />,
+  UserProfileMemoryWidget: () => <UserProfileMemoryWidget />,
+  RobotChatWidget: () => <RobotChatWidget />,
+  CustomEmotionKeywordsWidget: () => <CustomEmotionKeywordsWidget />,
   CustomSensor: ({ sensorName }: { sensorName: string }) => {
     const def = getCustomSensor(sensorName);
     if (!def) {
@@ -195,4 +201,3 @@ export default function XRPDashboard() {
     </div>
   );
 }
-  

@@ -21,6 +21,9 @@ import ManageEmotionsDialog from
 import VoiceCommandPanel from
   "../voice/VoiceCommandPanel";
 
+import EmotionKeywordRulesPanel from
+  "./EmotionKeywordRulesPanel";
+
 
 
 import type {
@@ -217,6 +220,11 @@ const suppressNextAutoSoundRef =
   const [
     voicePreviewEnabled,
     setVoicePreviewEnabled,
+  ] = useState(false);
+
+  const [
+    showEmotionKeywordOptions,
+    setShowEmotionKeywordOptions,
   ] = useState(false);
 
 
@@ -1380,6 +1388,24 @@ const repeatCount =
             );
           }}
         />
+
+        <button
+          type="button"
+          onClick={() => {
+            setShowEmotionKeywordOptions(
+              (current) => !current
+            );
+          }}
+          className="w-full rounded-lg border border-white bg-black px-3 py-2 text-xs font-bold text-white transition hover:bg-white hover:text-black"
+        >
+          {showEmotionKeywordOptions
+            ? "Hide voice keywords"
+            : "See voice keywords"}
+        </button>
+
+        {showEmotionKeywordOptions && (
+          <EmotionKeywordRulesPanel />
+        )}
 
         <div className="grid w-full grid-cols-2 gap-2">
           <button

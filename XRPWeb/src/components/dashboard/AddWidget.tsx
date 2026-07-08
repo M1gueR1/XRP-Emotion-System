@@ -2,7 +2,7 @@ import React from "react";
 import { useGridStackContext } from "./lib/grid-stack-context";
 import { Dropdown, DropdownItem } from "flowbite-react";
 import { MdSpeed } from 'react-icons/md';
-import { FaBatteryHalf, FaBolt, FaCamera, FaCog, FaEye, FaGlobe, FaPlug, FaPlus, FaSlidersH, FaRobot } from 'react-icons/fa';
+import { FaBatteryHalf, FaBolt, FaCamera, FaCog, FaEye, FaGlobe, FaPlug, FaPlus, FaSlidersH, FaRobot, FaCommentDots } from 'react-icons/fa';
 import { BsRulers } from 'react-icons/bs';
 import { FlowBiteConstants } from "@/utils/constants";
 import { useTranslation } from "react-i18next";
@@ -48,6 +48,16 @@ const BUILTIN_SENSORS: BuiltinSensorDef[] = [
     minW: 3,
     minH: 6,
     componentName: "CameraVisionWidget",
+  },
+  {
+    action: "robotChat",
+    icon: FaCommentDots,
+    titleKey: "Robot Chat",
+    gridH: 9,
+    gridW: 5,
+    minW: 3,
+    minH: 7,
+    componentName: "RobotChatWidget",
   },
 ];
 
