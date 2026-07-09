@@ -23,12 +23,52 @@ import {
   useFacePresenceDetector,
 } from "../vision/useFacePresenceDetector";
 
+import {
+  useFaceIdentityRecognition,
+} from "../vision/useFaceIdentityRecognition";
+
+import {
+  FACE_IDENTITY_MIN_SAMPLES,
+  FACE_IDENTITY_PROFILES_CHANGED_EVENT,
+  FACE_RECOGNITION_ENABLED_STORAGE_KEY,
+  deleteFaceIdentityProfile,
+  findMatchingFaceIdentity,
+  getFaceIdentityProfiles,
+  normalizeFaceIdentityDisplayName,
+  saveFaceIdentityProfile,
+  type FaceIdentityProfile,
+} from "../vision/faceIdentityStore";
+
+import {
+  checkChildSafety,
+} from "../safety/childSafetyEngine";
+
+import {
+  getChildSafetyPolicy,
+  verifyTeacherPasscode,
+} from "../safety/childSafetyPolicyStore";
+
+import {
+  USER_PROFILE_CHANGED_EVENT,
+  getUserProfiles,
+  type UserProfile,
+} from "../profiles/userProfileStore";
+
 
 const CAMERA_HAPPY_EMOTION_ID = 1;
 const CAMERA_EXCITED_EMOTION_ID = 3;
 const CAMERA_SAD_EMOTION_ID = 9;
 const CAMERA_IDLE_EMOTION_ID = 0;
 const CAMERA_UPSET_EMOTION_ID = 8;
+const FACE_RECOGNITION_EVENT =
+  "xrp:camera-person-recognized";
+const ROBOT_CHAT_READY_EVENT =
+  "xrp:robot-chat-ready";
+const FACE_RECOGNITION_CONFIRMATION_FRAMES = 2;
+const FACE_RECOGNITION_CONFIRMATION_WINDOW_MS =
+  1_500;
+const FACE_RECOGNITION_EVENT_COOLDOWN_MS =
+  30_000;
 
 
 type CameraDecision = {
@@ -37,6 +77,14 @@ type CameraDecision = {
   emotionLabel: string;
   confidence: number;
   reason: string;
+};
+
+type RecognizedPersonEventDetail = {
+  profileId: string;
+  displayName: string;
+  confidence: number;
+  source: "camera_face_recognition";
+  cameraSessionId: string;
 };
 
 
@@ -319,10 +367,90 @@ const CameraVisionWidget: React.FC = () => {
     null
   );
 
+  const [
+    faceRecognitionEnabled,
+    setFaceRecognitionEnabled,
+  ] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.localStorage.getItem(
+        FACE_RECOGNITION_ENABLED_STORAGE_KEY
+      ) === "true"
+  );
+
+  const [
+    faceIdentityProfiles,
+    setFaceIdentityProfiles,
+  ] = useState<FaceIdentityProfile[]>(
+    () => getFaceIdentityProfiles()
+  );
+
+  const [
+    selectedUserProfileId,
+    setSelectedUserProfileId,
+  ] = useState("");
+
+  const [
+    availableUserProfiles,
+    setAvailableUserProfiles,
+  ] = useState<UserProfile[]>(
+    () => getUserProfiles()
+  );
+
+  const [
+    faceIdentityStatus,
+    setFaceIdentityStatus,
+  ] = useState(
+    "Face recognition is off."
+  );
+
+  const [
+    faceTeacherUnlocked,
+    setFaceTeacherUnlocked,
+  ] = useState(false);
+
+  const [
+    faceTeacherPasscode,
+    setFaceTeacherPasscode,
+  ] = useState("");
+
+  const [
+    lastRecognizedName,
+    setLastRecognizedName,
+  ] = useState("");
+
+  const [
+    recognitionGreeting,
+    setRecognitionGreeting,
+  ] = useState("");
+
   const lastCameraEmotionSignalRef =
     useRef<string | null>(null);
 
   const lastCameraEmotionChangedAtRef =
+    useRef(0);
+
+  const recognitionCandidateRef =
+    useRef<{
+      profileId: string;
+      count: number;
+      lastSeenAt: number;
+    } | null>(null);
+
+  const recognitionEmittedAtRef =
+    useRef<Map<string, number>>(
+      new Map()
+    );
+
+  const currentRecognizedPersonRef =
+    useRef<RecognizedPersonEventDetail | null>(
+      null
+    );
+
+  const cameraSessionIdRef =
+    useRef("");
+
+  const cameraSessionSequenceRef =
     useRef(0);
 
   const {
@@ -347,6 +475,446 @@ const CameraVisionWidget: React.FC = () => {
     videoRef: cameraVideoRef,
     isEnabled: isCameraActive,
   });
+
+  const {
+    status:
+      faceIdentityRecognitionStatus,
+    errorMessage:
+      faceIdentityRecognitionError,
+    descriptor:
+      faceIdentityDescriptor,
+    detectionConfidence:
+      faceIdentityDetectionConfidence,
+  } = useFaceIdentityRecognition({
+    videoRef: cameraVideoRef,
+    isEnabled:
+      isCameraActive &&
+      (
+        faceRecognitionEnabled ||
+        faceTeacherUnlocked
+      ),
+  });
+
+  useEffect(() => {
+    const refreshProfiles = (): void => {
+      setFaceIdentityProfiles(
+        getFaceIdentityProfiles()
+      );
+    };
+
+    window.addEventListener(
+      FACE_IDENTITY_PROFILES_CHANGED_EVENT,
+      refreshProfiles
+    );
+
+    window.addEventListener(
+      "storage",
+      refreshProfiles
+    );
+
+    return () => {
+      window.removeEventListener(
+        FACE_IDENTITY_PROFILES_CHANGED_EVENT,
+        refreshProfiles
+      );
+
+      window.removeEventListener(
+        "storage",
+        refreshProfiles
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    const refreshUserProfiles =
+      (): void => {
+        const nextProfiles =
+          getUserProfiles();
+
+        setAvailableUserProfiles(
+          nextProfiles
+        );
+
+        setSelectedUserProfileId(
+          (current) =>
+            nextProfiles.some(
+              (profile) =>
+                profile.id === current
+            )
+              ? current
+              : ""
+        );
+      };
+
+    window.addEventListener(
+      USER_PROFILE_CHANGED_EVENT,
+      refreshUserProfiles
+    );
+
+    window.addEventListener(
+      "storage",
+      refreshUserProfiles
+    );
+
+    return () => {
+      window.removeEventListener(
+        USER_PROFILE_CHANGED_EVENT,
+        refreshUserProfiles
+      );
+
+      window.removeEventListener(
+        "storage",
+        refreshUserProfiles
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      FACE_RECOGNITION_ENABLED_STORAGE_KEY,
+      String(faceRecognitionEnabled)
+    );
+
+    if (!faceRecognitionEnabled) {
+      recognitionCandidateRef.current =
+        null;
+      currentRecognizedPersonRef.current =
+        null;
+      setLastRecognizedName("");
+      setRecognitionGreeting("");
+      setFaceIdentityStatus(
+        "Face recognition is off."
+      );
+    } else {
+      setFaceIdentityStatus(
+        "Looking for enrolled people locally."
+      );
+    }
+  }, [faceRecognitionEnabled]);
+
+  useEffect(() => {
+    if (isCameraActive) {
+      if (!cameraSessionIdRef.current) {
+        cameraSessionSequenceRef.current +=
+          1;
+
+        cameraSessionIdRef.current =
+          `camera-session-${Date.now()}-${cameraSessionSequenceRef.current}`;
+      }
+
+      return;
+    }
+
+    /*
+     * A new camera session should be allowed to greet immediately,
+     * even if the same person was recognized moments before.
+     */
+    recognitionCandidateRef.current =
+      null;
+    currentRecognizedPersonRef.current =
+      null;
+    recognitionEmittedAtRef.current.clear();
+    cameraSessionIdRef.current = "";
+    setLastRecognizedName("");
+    setRecognitionGreeting("");
+
+    if (faceRecognitionEnabled) {
+      setFaceIdentityStatus(
+        "Camera is off. Recognition will resume when it is turned on."
+      );
+    }
+  }, [
+    faceRecognitionEnabled,
+    isCameraActive,
+  ]);
+
+  useEffect(() => {
+    if (
+      !faceRecognitionEnabled ||
+      !isCameraActive ||
+      faceCount !== 1 ||
+      !faceIdentityDescriptor ||
+      faceIdentityDetectionConfidence <
+        0.5
+    ) {
+      const candidate =
+        recognitionCandidateRef.current;
+
+      if (
+        !candidate ||
+        Date.now() -
+          candidate.lastSeenAt >
+          FACE_RECOGNITION_CONFIRMATION_WINDOW_MS
+      ) {
+        recognitionCandidateRef.current =
+          null;
+        currentRecognizedPersonRef.current =
+          null;
+      }
+      return;
+    }
+
+    const match =
+      findMatchingFaceIdentity(
+        faceIdentityDescriptor,
+        faceIdentityProfiles
+      );
+
+    if (!match) {
+      const candidate =
+        recognitionCandidateRef.current;
+
+      if (
+        !candidate ||
+        Date.now() -
+          candidate.lastSeenAt >
+          FACE_RECOGNITION_CONFIRMATION_WINDOW_MS
+      ) {
+        recognitionCandidateRef.current =
+          null;
+        currentRecognizedPersonRef.current =
+          null;
+      }
+      setFaceIdentityStatus(
+        "Face seen, but no confident known-person match."
+      );
+      return;
+    }
+
+    const previous =
+      recognitionCandidateRef.current;
+
+    const now = Date.now();
+
+    const nextCount =
+      previous?.profileId ===
+        match.profile.id &&
+      now - previous.lastSeenAt <=
+        FACE_RECOGNITION_CONFIRMATION_WINDOW_MS
+        ? previous.count + 1
+        : 1;
+
+    recognitionCandidateRef.current = {
+      profileId: match.profile.id,
+      count: nextCount,
+      lastSeenAt: now,
+    };
+
+    if (
+      nextCount <
+      FACE_RECOGNITION_CONFIRMATION_FRAMES
+    ) {
+      setFaceIdentityStatus(
+        `Confirming ${match.profile.displayName}...`
+      );
+      return;
+    }
+
+    const lastEmittedAt =
+      recognitionEmittedAtRef.current.get(
+        match.profile.id
+      ) ?? 0;
+
+    setLastRecognizedName(
+      match.profile.displayName
+    );
+    setRecognitionGreeting(
+      `Hello, ${match.profile.displayName}! It's great to have you back.`
+    );
+    setFaceIdentityStatus(
+      `Last recognized: ${match.profile.displayName}`
+    );
+
+    if (
+      now - lastEmittedAt <
+      FACE_RECOGNITION_EVENT_COOLDOWN_MS
+    ) {
+      return;
+    }
+
+    recognitionEmittedAtRef.current.set(
+      match.profile.id,
+      now
+    );
+
+    const detail:
+      RecognizedPersonEventDetail = {
+        profileId: match.profile.id,
+        displayName:
+          match.profile.displayName,
+        confidence:
+          match.confidence,
+        source:
+          "camera_face_recognition",
+        cameraSessionId:
+          cameraSessionIdRef.current,
+      };
+
+    currentRecognizedPersonRef.current =
+      detail;
+
+    window.dispatchEvent(
+      new CustomEvent(
+        FACE_RECOGNITION_EVENT,
+        { detail }
+      )
+    );
+  }, [
+    faceCount,
+    faceIdentityDescriptor,
+    faceIdentityDetectionConfidence,
+    faceIdentityProfiles,
+    faceRecognitionEnabled,
+    isCameraActive,
+  ]);
+
+  useEffect(() => {
+    const handleRobotChatReady =
+      (): void => {
+        const detail =
+          currentRecognizedPersonRef.current;
+
+        if (
+          !faceRecognitionEnabled ||
+          !detail
+        ) {
+          return;
+        }
+
+        recognitionEmittedAtRef.current.set(
+          detail.profileId,
+          Date.now()
+        );
+
+        window.dispatchEvent(
+          new CustomEvent(
+            FACE_RECOGNITION_EVENT,
+            { detail }
+          )
+        );
+      };
+
+    window.addEventListener(
+      ROBOT_CHAT_READY_EVENT,
+      handleRobotChatReady
+    );
+
+    return () => {
+      window.removeEventListener(
+        ROBOT_CHAT_READY_EVENT,
+        handleRobotChatReady
+      );
+    };
+  }, [faceRecognitionEnabled]);
+
+  const handleUnlockFaceTeacherMode =
+    (): void => {
+      if (
+        verifyTeacherPasscode(
+          faceTeacherPasscode,
+          getChildSafetyPolicy()
+        )
+      ) {
+        setFaceTeacherUnlocked(true);
+        setFaceTeacherPasscode("");
+        setFaceIdentityStatus(
+          "Teacher controls unlocked for this camera session."
+        );
+        return;
+      }
+
+      setFaceIdentityStatus(
+        "Incorrect teacher passcode."
+      );
+    };
+
+  const handleCaptureFaceSample =
+    (): void => {
+      if (!faceTeacherUnlocked) {
+        setFaceIdentityStatus(
+          "Unlock teacher controls before enrollment."
+        );
+        return;
+      }
+
+      const selectedProfile =
+        availableUserProfiles.find(
+          (profile) =>
+            profile.id ===
+            selectedUserProfileId
+        );
+
+      const displayName =
+        normalizeFaceIdentityDisplayName(
+          selectedProfile?.displayName ??
+            ""
+        );
+
+      if (
+        !selectedProfile ||
+        !displayName
+      ) {
+        setFaceIdentityStatus(
+          "Choose an existing Robot Chat profile."
+        );
+        return;
+      }
+
+      const nameSafety =
+        checkChildSafety(
+          displayName,
+          getChildSafetyPolicy()
+        );
+
+      if (!nameSafety.allowed) {
+        setFaceIdentityStatus(
+          "That display name is not allowed by classroom safety rules."
+        );
+        return;
+      }
+
+      if (
+        !isCameraActive ||
+        faceCount !== 1 ||
+        !faceIdentityDescriptor ||
+        faceIdentityRecognitionStatus ===
+          "loading"
+      ) {
+        setFaceIdentityStatus(
+          "Show exactly one face clearly to capture a sample."
+        );
+        return;
+      }
+
+      try {
+        const profile =
+          saveFaceIdentityProfile(
+            selectedProfile.id,
+            displayName,
+            faceIdentityDescriptor
+          );
+
+        const sampleCount =
+          profile.descriptors.length;
+
+        setFaceIdentityStatus(
+          sampleCount <
+            FACE_IDENTITY_MIN_SAMPLES
+            ? `Sample ${sampleCount}/${FACE_IDENTITY_MIN_SAMPLES} saved for ${profile.displayName}. Move slightly and capture again.`
+            : `${profile.displayName} is enrolled with ${sampleCount} local landmark samples.`
+        );
+
+        setFaceIdentityProfiles(
+          getFaceIdentityProfiles()
+        );
+      } catch (error) {
+        setFaceIdentityStatus(
+          error instanceof Error
+            ? error.message
+            : "Could not save the face sample."
+        );
+      }
+    };
 
   useEffect(() => {
     if (
@@ -550,6 +1118,12 @@ const CameraVisionWidget: React.FC = () => {
           )}
         </div>
 
+        {recognitionGreeting && (
+          <div className="rounded-xl border border-white bg-black px-3 py-2 text-center text-xs font-bold text-white">
+            {recognitionGreeting}
+          </div>
+        )}
+
         <button
           type="button"
           onClick={() => {
@@ -599,6 +1173,250 @@ const CameraVisionWidget: React.FC = () => {
                   ? "On"
                   : "Off"}
               </button>
+            </div>
+
+            <div className="rounded-xl border border-white bg-black p-3 text-white">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-[11px] font-bold">
+                    Face recognition
+                  </div>
+
+                  <div className="text-[10px] text-zinc-300">
+                    Opt-in and local only. Stores landmark vectors, never photos.
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={
+                    !faceTeacherUnlocked ||
+                    !isCameraActive
+                  }
+                  onClick={() => {
+                    setFaceRecognitionEnabled(
+                      (current) => !current
+                    );
+                  }}
+                  className={[
+                    "shrink-0 rounded-lg border border-white px-3 py-1.5 text-xs font-bold text-white transition",
+                    faceRecognitionEnabled
+                      ? "bg-emerald-700"
+                      : "bg-zinc-800",
+                    !faceTeacherUnlocked ||
+                    !isCameraActive
+                      ? "cursor-not-allowed opacity-50"
+                      : "",
+                  ].join(" ")}
+                >
+                  {faceRecognitionEnabled
+                    ? "On"
+                    : "Off"}
+                </button>
+              </div>
+
+              {!faceTeacherUnlocked ? (
+                <div className="mt-3 flex gap-2">
+                  <input
+                    type="password"
+                    value={faceTeacherPasscode}
+                    onChange={(event) => {
+                      setFaceTeacherPasscode(
+                        event.target.value
+                      );
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        handleUnlockFaceTeacherMode();
+                      }
+                    }}
+                    placeholder="Teacher passcode"
+                    className="min-w-0 flex-1 rounded-lg border border-white bg-black px-3 py-2 text-xs text-white placeholder:text-zinc-500"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={
+                      handleUnlockFaceTeacherMode
+                    }
+                    className="rounded-lg border border-white bg-zinc-900 px-3 py-2 text-xs font-bold text-white"
+                  >
+                    Unlock
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  <div className="flex gap-2">
+                    <select
+                      value={
+                        selectedUserProfileId
+                      }
+                      onChange={(event) => {
+                        setSelectedUserProfileId(
+                          event.target.value
+                        );
+                      }}
+                      className="min-w-0 flex-1 rounded-lg border border-white bg-black px-3 py-2 text-xs text-white placeholder:text-zinc-500"
+                    >
+                      <option value="">
+                        Choose existing chat profile
+                      </option>
+
+                      {availableUserProfiles.map(
+                        (profile) => (
+                          <option
+                            key={profile.id}
+                            value={profile.id}
+                          >
+                            {profile.displayName}
+                          </option>
+                        )
+                      )}
+                    </select>
+
+                    <button
+                      type="button"
+                      disabled={
+                        !selectedUserProfileId ||
+                        !isCameraActive ||
+                        faceCount !== 1 ||
+                        !faceIdentityDescriptor ||
+                        faceIdentityRecognitionStatus ===
+                          "loading"
+                      }
+                      onClick={
+                        handleCaptureFaceSample
+                      }
+                      className={[
+                        "rounded-lg border border-white bg-zinc-900 px-3 py-2 text-xs font-bold text-white",
+                        !selectedUserProfileId ||
+                        !isCameraActive ||
+                        faceCount !== 1 ||
+                        !faceIdentityDescriptor ||
+                        faceIdentityRecognitionStatus ===
+                          "loading"
+                          ? "cursor-not-allowed opacity-50"
+                          : "",
+                      ].join(" ")}
+                    >
+                      Capture face sample
+                    </button>
+                  </div>
+
+                  {availableUserProfiles.length ===
+                    0 && (
+                    <div className="text-[10px] text-amber-300">
+                      Create a user profile in Robot Chat before enrolling a face.
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-zinc-300">
+                      Teacher controls unlocked
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFaceTeacherUnlocked(false);
+                        setFaceTeacherPasscode("");
+                      }}
+                      className="text-[10px] font-bold text-zinc-300 underline"
+                    >
+                      Lock
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-3 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-[10px]">
+                {faceIdentityStatus}
+                {lastRecognizedName
+                  ? ` (${lastRecognizedName})`
+                  : ""}
+              </div>
+
+              <div className="mt-2 text-[10px] text-zinc-400">
+                Recognition model:{" "}
+                {faceIdentityRecognitionStatus}
+                {faceIdentityDetectionConfidence >
+                  0
+                  ? ` · face confidence ${percentageLabel(
+                      faceIdentityDetectionConfidence
+                    )}`
+                  : ""}
+              </div>
+
+              {faceIdentityRecognitionError && (
+                <div className="mt-2 rounded-lg bg-red-950 px-3 py-2 text-[10px] font-semibold text-white">
+                  {faceIdentityRecognitionError}
+                </div>
+              )}
+
+              <div className="mt-3">
+                <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+                  Known people
+                </div>
+
+                {faceIdentityProfiles.length === 0 ? (
+                  <div className="mt-1 text-[10px] text-zinc-400">
+                    No enrolled people.
+                  </div>
+                ) : (
+                  <div className="mt-1 space-y-1">
+                    {faceIdentityProfiles.map(
+                      (profile) => (
+                        <div
+                          key={profile.id}
+                          className="flex items-center justify-between gap-2 rounded-lg border border-zinc-700 px-2 py-1.5"
+                        >
+                          <div className="min-w-0 text-[10px]">
+                            <span className="font-bold">
+                              {profile.displayName}
+                            </span>
+                            <span className="ml-2 text-zinc-400">
+                              {profile.descriptors.length}/
+                              {FACE_IDENTITY_MIN_SAMPLES} samples
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={
+                              !faceTeacherUnlocked
+                            }
+                            onClick={() => {
+                              if (
+                                !faceTeacherUnlocked
+                              ) {
+                                return;
+                              }
+
+                              deleteFaceIdentityProfile(
+                                profile.id
+                              );
+                              setFaceIdentityProfiles(
+                                getFaceIdentityProfiles()
+                              );
+                              setFaceIdentityStatus(
+                                `${profile.displayName} was deleted.`
+                              );
+                            }}
+                            className={[
+                              "shrink-0 rounded border border-white px-2 py-1 text-[10px] font-bold",
+                              !faceTeacherUnlocked
+                                ? "cursor-not-allowed opacity-40"
+                                : "",
+                            ].join(" ")}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-[11px]">

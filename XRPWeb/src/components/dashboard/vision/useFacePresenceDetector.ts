@@ -793,6 +793,7 @@ export function useFacePresenceDetector({
                 setExpressionConfidence(
                   nextSignal.confidence
                 );
+
               } else {
                 setExpressionScores(
                   EMPTY_EXPRESSION_SCORES

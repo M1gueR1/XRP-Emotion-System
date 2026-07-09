@@ -100,6 +100,11 @@ import {
   type ChildSafetyPolicy,
 } from "../safety/childSafetyPolicyStore";
 
+import {
+  getFaceIdentityProfiles,
+  normalizeFaceIdentityDisplayName,
+} from "../vision/faceIdentityStore";
+
 
 type ChatMessage = {
   id: string;
@@ -122,6 +127,9 @@ type AiResponseMode =
   | "local_only"
   | "smart_fallback"
   | "rescue_with_gemini";
+
+const FACE_GREETING_COOLDOWN_MS =
+  30_000;
 
 
 const EMOTION_IDLE_ID = 0;
@@ -1674,6 +1682,19 @@ const RobotChatWidget:
   const scrollRef =
     useRef<HTMLDivElement>(null);
 
+  const faceGreetingTimestampsRef =
+    useRef<Map<string, number>>(
+      new Map()
+    );
+
+  const lastUserChatActivityAtRef =
+    useRef(0);
+
+  const greetedCameraSessionsRef =
+    useRef<Set<string>>(
+      new Set()
+    );
+
   const refreshProfiles = (): void => {
     setProfiles(
       getUserProfiles()
@@ -1995,6 +2016,13 @@ const RobotChatWidget:
     if (!rawInput || !clean) {
       return;
     }
+
+    /*
+     * Typed and voice-to-chat messages both count as active
+     * conversation and suppress camera greetings for 30 seconds.
+     */
+    lastUserChatActivityAtRef.current =
+      Date.now();
 
     const safetyResult =
       checkChildSafety(
@@ -2530,6 +2558,197 @@ const RobotChatWidget:
       );
     };
   });
+
+  useEffect(() => {
+    const handleRecognizedPerson =
+      (event: Event): void => {
+        const customEvent =
+          event as CustomEvent<{
+            profileId?: string;
+            displayName?: string;
+            confidence?: number;
+            source?: string;
+            cameraSessionId?: string;
+          }>;
+
+        const detail =
+          customEvent.detail;
+
+        if (
+          !detail ||
+          detail.source !==
+            "camera_face_recognition" ||
+          typeof detail.profileId !==
+            "string" ||
+          typeof detail.displayName !==
+            "string" ||
+          typeof detail.confidence !==
+            "number" ||
+          typeof detail.cameraSessionId !==
+            "string" ||
+          !detail.cameraSessionId ||
+          !Number.isFinite(
+            detail.confidence
+          ) ||
+          detail.confidence < 0.75 ||
+          detail.confidence > 1
+        ) {
+          return;
+        }
+
+        const storedProfile =
+          getFaceIdentityProfiles().find(
+            (profile) =>
+              profile.id ===
+              detail.profileId
+          );
+
+        if (!storedProfile) {
+          return;
+        }
+
+        const linkedUserProfile =
+          getUserProfiles().find(
+            (profile) =>
+              profile.id ===
+              storedProfile.userProfileId
+          );
+
+        if (!linkedUserProfile) {
+          return;
+        }
+
+        const displayName =
+          normalizeFaceIdentityDisplayName(
+            linkedUserProfile.displayName
+          );
+
+        if (
+          !displayName ||
+          displayName !==
+            storedProfile.displayName ||
+          detail.displayName !==
+            storedProfile.displayName
+        ) {
+          return;
+        }
+
+        const policy =
+          getChildSafetyPolicy();
+
+        const nameSafety =
+          checkChildSafety(
+            displayName,
+            policy
+          );
+
+        const greeting =
+          `Hello ${displayName}! It's nice to see you.`;
+
+        const greetingSafety =
+          checkChildSafety(
+            greeting,
+            policy
+          );
+
+        if (
+          !nameSafety.allowed ||
+          !greetingSafety.allowed
+        ) {
+          return;
+        }
+
+        const now = Date.now();
+        const lastGreetingAt =
+          faceGreetingTimestampsRef.current.get(
+            detail.profileId
+          ) ?? 0;
+
+        const userWasRecentlyActive =
+          now -
+            lastUserChatActivityAtRef.current <
+          FACE_GREETING_COOLDOWN_MS;
+
+        const isNewCameraSession =
+          !greetedCameraSessionsRef.current.has(
+            detail.cameraSessionId
+          );
+
+        if (
+          !isNewCameraSession &&
+          (
+            userWasRecentlyActive ||
+            now - lastGreetingAt <
+              FACE_GREETING_COOLDOWN_MS
+          )
+        ) {
+          return;
+        }
+
+        greetedCameraSessionsRef.current.add(
+          detail.cameraSessionId
+        );
+
+        faceGreetingTimestampsRef.current.set(
+          detail.profileId,
+          now
+        );
+
+        /*
+         * This is a trusted local recognition event, not student chat:
+         * do not call Gemini, parse memory, or run chat keywords.
+         */
+        setActiveUserProfileId(
+          linkedUserProfile.id
+        );
+
+        setMessages((current) => [
+          ...current,
+          {
+            id: safeRandomId(),
+            role: "robot",
+            text: greeting,
+            emotionLabel: "Happy",
+            createdAt: nowIso(),
+          },
+        ]);
+
+        emitDashboardEmotionPreview(
+          {
+            emotionId:
+              EMOTION_HAPPY_ID,
+            emotionLabel: "Happy",
+            confidence: Math.max(
+              0.85,
+              detail.confidence
+            ),
+            reason:
+              "Camera face recognition identified an enrolled person.",
+          },
+          "camera_face_recognition"
+        );
+      };
+
+    window.addEventListener(
+      "xrp:camera-person-recognized",
+      handleRecognizedPerson as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "xrp:camera-person-recognized",
+        handleRecognizedPerson as EventListener
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent(
+        "xrp:robot-chat-ready"
+      )
+    );
+  }, []);
 
   const handleClearChat = (): void => {
     setMessages([
