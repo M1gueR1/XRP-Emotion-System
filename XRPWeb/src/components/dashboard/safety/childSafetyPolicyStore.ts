@@ -267,6 +267,8 @@ export function exportChildSafetyPolicyJson(
         policy.customBlockedTerms,
       safeReply:
         policy.safeReply,
+      teacherPasscode:
+        policy.teacherPasscode,
     },
     null,
     2
@@ -284,7 +286,5 @@ export function importChildSafetyPolicyJson(
   return normalizePolicy({
     ...existingPolicy,
     ...parsed,
-    teacherPasscode:
-      existingPolicy.teacherPasscode,
   });
 }

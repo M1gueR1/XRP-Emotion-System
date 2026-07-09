@@ -83,7 +83,7 @@ const SensorCard: React.FC<SensorCardProps> = ({
   return (
 
     <div ref={cardRef} className="sensor-card rounded-xl bg-white shadow w-full h-full flex flex-col border-gray-300 border-4">
-      <div className="sensor-header flex justify-between items-center p-3">
+      <div className="sensor-header flex justify-between items-center px-3 py-2">
         <div className="flex items-center gap-2">
           <div className="text-gray-600 dark:text-gray-300 text-2xl">
             {icon}
@@ -92,11 +92,11 @@ const SensorCard: React.FC<SensorCardProps> = ({
         </div>
       </div>
 
-      <div className="sensor-content-area flex-grow flex justify-center items-center p-2 overflow-hidden">
+      <div className="sensor-content-area flex-grow flex justify-center items-center p-1 overflow-hidden">
         {children}
       </div>
 
-      <div className="sensor-footer flex justify-between items-center p-3">
+      <div className="sensor-footer flex justify-between items-center px-3 py-2">
         <div className="text-xs text-gray-400 dark:text-gray-300">
           {lastUpdated && (
             <span>Updated: {new Date(lastUpdated).toLocaleTimeString()}</span>

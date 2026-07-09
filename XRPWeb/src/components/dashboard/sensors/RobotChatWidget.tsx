@@ -14,6 +14,8 @@ import {
 
 import SensorCard from "./SensorCard";
 
+import Dialog from "../../dialogs/dialog";
+
 import {
   useGridStackWidget,
 } from "../hooks/useGridStackWidget";
@@ -127,6 +129,10 @@ type AiResponseMode =
   | "local_only"
   | "smart_fallback"
   | "rescue_with_gemini";
+
+type MemoryViewMode =
+  | "neural_network"
+  | "basic";
 
 const FACE_GREETING_COOLDOWN_MS =
   30_000;
@@ -1520,6 +1526,1141 @@ function shouldRescueLocalReplyWithGemini(
   );
 }
 
+function profileMemoryFacts(
+  profile: UserProfile | null
+): string[] {
+  if (!profile) {
+    return [];
+  }
+
+  if (profile.memoryItems.length > 0) {
+    return profile.memoryItems.map((item) =>
+      factFromMemoryItem(
+        item,
+        profile.displayName
+      )
+    );
+  }
+
+  return profile.facts.map(
+    (fact) => fact.text
+  );
+}
+
+
+type MemoryNetworkViewProps = {
+  profile: UserProfile | null;
+};
+
+
+function MemoryNetworkView({
+  profile,
+}: MemoryNetworkViewProps) {
+  const facts =
+    profileMemoryFacts(profile);
+
+  if (!profile) {
+    return (
+      <div className="rounded-xl border border-white bg-black p-4 text-sm text-zinc-200">
+        No active profile yet.
+      </div>
+    );
+  }
+
+  if (facts.length === 0) {
+    return (
+      <div className="rounded-xl border border-white bg-black p-4 text-sm text-zinc-200">
+        {profile.displayName} has no saved facts yet.
+      </div>
+    );
+  }
+
+  const width = 860;
+  const height = Math.max(
+    420,
+    facts.length * 96 + 80
+  );
+  const profileX = 140;
+  const profileY = height / 2;
+  const factX = 620;
+  const firstFactY =
+    height / 2 -
+    ((facts.length - 1) * 86) / 2;
+
+  return (
+    <div className="overflow-auto rounded-xl border border-white bg-gradient-to-br from-black via-zinc-950 to-black p-3">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="min-h-[360px] w-full min-w-[720px]"
+        role="img"
+        aria-label={`${profile.displayName} memory network`}
+      >
+        <defs>
+          <filter
+            id="memory-node-glow"
+            x="-30%"
+            y="-30%"
+            width="160%"
+            height="160%"
+          >
+            <feGaussianBlur
+              stdDeviation="5"
+              result="blur"
+            />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        {facts.map((_, index) => {
+          const y =
+            firstFactY + index * 86;
+          const controlX =
+            profileX +
+            (factX - profileX) * 0.52;
+
+          return (
+            <g key={`connection-${index}`}>
+              <path
+                d={[
+                  `M ${profileX + 108} ${profileY}`,
+                  `C ${controlX} ${profileY}`,
+                  `${controlX} ${y}`,
+                  `${factX - 130} ${y}`,
+                ].join(" ")}
+                fill="none"
+                stroke="rgba(255,255,255,0.48)"
+                strokeWidth="2"
+              />
+
+              <circle
+                cx={controlX}
+                cy={(profileY + y) / 2}
+                r="4"
+                fill="white"
+                opacity="0.82"
+              />
+            </g>
+          );
+        })}
+
+        <ellipse
+          cx={profileX}
+          cy={profileY}
+          rx="112"
+          ry="48"
+          fill="#020617"
+          stroke="white"
+          strokeWidth="2.5"
+          filter="url(#memory-node-glow)"
+        />
+
+        <foreignObject
+          x={profileX - 86}
+          y={profileY - 23}
+          width="172"
+          height="46"
+        >
+          <div className="flex h-full items-center justify-center px-2 text-center text-base font-extrabold leading-5 text-white">
+            {profile.displayName}
+          </div>
+        </foreignObject>
+
+        {facts.map((fact, index) => {
+          const y =
+            firstFactY + index * 86;
+
+          return (
+            <g key={`node-${index}`}>
+              <ellipse
+                cx={factX}
+                cy={y}
+                rx="132"
+                ry="42"
+                fill="#050505"
+                stroke="white"
+                strokeWidth="1.5"
+              />
+
+              <foreignObject
+                x={factX - 108}
+                y={y - 28}
+                width="216"
+                height="56"
+              >
+                <div className="flex h-full items-center justify-center px-2 text-center text-[11px] font-semibold leading-4 text-white">
+                  {fact}
+                </div>
+              </foreignObject>
+            </g>
+          );
+        })}
+
+        {facts.map((_, index) => {
+          const y =
+            firstFactY + index * 86;
+
+          return (
+            <polygon
+              key={`line-${index}`}
+              points={`${factX - 138},${y} ${factX - 150},${y - 6} ${factX - 150},${y + 6}`}
+              fill="white"
+              opacity="0.78"
+            />
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+
+type MemoryDialogProps = {
+  activeProfile: UserProfile | null;
+  activeProfileSummary: string;
+  isOpen: boolean;
+  mode: MemoryViewMode;
+  onClose: () => void;
+  onModeChange: (mode: MemoryViewMode) => void;
+};
+
+
+function MemoryDialog({
+  activeProfile,
+  activeProfileSummary,
+  isOpen,
+  mode,
+  onClose,
+  onModeChange,
+}: MemoryDialogProps) {
+  return (
+    <Dialog
+      isOpen={isOpen}
+      toggleDialog={onClose}
+    >
+      <div className="flex max-h-[85vh] w-[min(92vw,860px)] flex-col gap-4 overflow-hidden bg-black p-5 text-white">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold">
+              Profile memory
+            </h2>
+
+            <p className="mt-1 text-xs text-zinc-300">
+              {activeProfile
+                ? `Memory saved for ${activeProfile.displayName}.`
+                : "No active profile selected."}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded border border-white bg-black px-3 py-1 text-xs font-bold text-white transition hover:bg-white hover:text-black"
+            aria-label="Close memory window"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              onModeChange(
+                "neural_network"
+              )
+            }
+            className={`rounded border px-3 py-1 text-xs font-bold transition ${
+              mode ===
+              "neural_network"
+                ? "border-white bg-white text-black"
+                : "border-white bg-black text-white hover:bg-white hover:text-black"
+            }`}
+          >
+            View as a neural network
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              onModeChange("basic")
+            }
+            className={`rounded border px-3 py-1 text-xs font-bold transition ${
+              mode === "basic"
+                ? "border-white bg-white text-black"
+                : "border-white bg-black text-white hover:bg-white hover:text-black"
+            }`}
+          >
+            View basic
+          </button>
+        </div>
+
+        <div className="min-h-0 overflow-auto">
+          {mode ===
+          "neural_network" ? (
+            <MemoryNetworkView
+              profile={activeProfile}
+            />
+          ) : (
+            <div className="rounded-xl border border-white bg-black p-4 text-sm leading-6 text-white">
+              {activeProfileSummary}
+            </div>
+          )}
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+type RobotNameDialogProps = {
+  isOpen: boolean;
+  robotName: string;
+  onChangeRobotName: (value: string) => void;
+  onClose: () => void;
+};
+
+
+function RobotNameDialog({
+  isOpen,
+  robotName,
+  onChangeRobotName,
+  onClose,
+}: RobotNameDialogProps) {
+  const [draftName, setDraftName] =
+    useState(robotName);
+
+  useEffect(() => {
+    if (isOpen) {
+      setDraftName(robotName);
+    }
+  }, [isOpen, robotName]);
+
+  const saveName = (): void => {
+    const nextName =
+      draftName.trim() ||
+      "XRP Robot";
+
+    onChangeRobotName(nextName);
+    onClose();
+  };
+
+  return (
+    <Dialog
+      isOpen={isOpen}
+      toggleDialog={onClose}
+    >
+      <div className="flex w-[min(92vw,440px)] flex-col gap-4 bg-black p-5 text-white">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold">
+              Robot name
+            </h2>
+
+            <p className="mt-1 text-xs text-zinc-300">
+              Choose the name shown in the chat header and robot messages.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded border border-white bg-black px-3 py-1 text-xs font-bold text-white transition hover:bg-white hover:text-black"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="grid gap-2">
+          <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+            New robot name
+          </label>
+
+          <input
+            value={draftName}
+            onChange={(event) =>
+              setDraftName(
+                event.target.value
+              )
+            }
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                saveName();
+              }
+            }}
+            className={`${inputClass} w-full`}
+            placeholder="XRP Robot"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={saveName}
+          className={`${buttonClass} w-full`}
+        >
+          Save robot name
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+type ChatKeywordsDialogProps = {
+  chatKeywordEmotion: ChatKeywordEmotionKey;
+  chatKeywordPhrase: string;
+  chatKeywordReply: string;
+  chatKeywordRules: ChatKeywordRule[];
+  isOpen: boolean;
+  onAddChatKeyword: () => void;
+  onChangeEmotion: (value: ChatKeywordEmotionKey) => void;
+  onChangePhrase: (value: string) => void;
+  onChangeReply: (value: string) => void;
+  onClose: () => void;
+  onDeleteChatKeyword: (ruleId: string) => void;
+};
+
+
+function ChatKeywordsDialog({
+  chatKeywordEmotion,
+  chatKeywordPhrase,
+  chatKeywordReply,
+  chatKeywordRules,
+  isOpen,
+  onAddChatKeyword,
+  onChangeEmotion,
+  onChangePhrase,
+  onChangeReply,
+  onClose,
+  onDeleteChatKeyword,
+}: ChatKeywordsDialogProps) {
+  return (
+    <Dialog
+      isOpen={isOpen}
+      toggleDialog={onClose}
+    >
+      <div className="flex max-h-[88vh] w-[min(94vw,860px)] flex-col gap-4 overflow-hidden bg-black p-5 text-white">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold">
+              Chat keywords
+            </h2>
+
+            <p className="mt-1 text-xs text-zinc-300">
+              Create simple classroom-safe keyword responses for the robot.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded border border-white bg-black px-3 py-1 text-xs font-bold text-white transition hover:bg-white hover:text-black"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="min-h-0 overflow-auto pr-1">
+          <div className="grid gap-3 rounded-xl border border-white bg-black p-3">
+            <div className="grid gap-1">
+              <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+                IF CHAT CONTAINS
+              </label>
+
+              <input
+                value={chatKeywordPhrase}
+                onChange={(event) =>
+                  onChangePhrase(
+                    event.target.value
+                  )
+                }
+                className={`${inputClass} w-full`}
+                placeholder="Example: Mario Kart"
+              />
+            </div>
+
+            <div className="grid gap-1">
+              <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+                EMOTION
+              </label>
+
+              <select
+                value={chatKeywordEmotion}
+                onChange={(event) =>
+                  onChangeEmotion(
+                    event.target
+                      .value as ChatKeywordEmotionKey
+                  )
+                }
+                className={`${inputClass} w-full`}
+              >
+                {CHAT_KEYWORD_EMOTION_OPTIONS.map(
+                  (option) => (
+                    <option
+                      key={option.key}
+                      value={option.key}
+                      className="bg-black text-white"
+                    >
+                      {option.label}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+
+            <div className="grid gap-1">
+              <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+                ROBOT REPLY
+              </label>
+
+              <textarea
+                value={chatKeywordReply}
+                onChange={(event) =>
+                  onChangeReply(
+                    event.target.value
+                  )
+                }
+                className={`${inputClass} min-h-[82px] w-full resize-none`}
+                placeholder="Example: I remember Mario Kart matters to you."
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={onAddChatKeyword}
+              className={`${buttonClass} w-full`}
+            >
+              Add chat keyword
+            </button>
+          </div>
+
+          <div className="mt-4">
+            <div className="mb-2 text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+              Saved chat keywords
+            </div>
+
+            {chatKeywordRules.length === 0 ? (
+              <div className="rounded-xl border border-white bg-black p-3 text-xs leading-5 text-zinc-300">
+                No custom chat keywords yet.
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {chatKeywordRules.map((rule) => (
+                  <div
+                    key={rule.id}
+                    className="flex min-h-[150px] flex-col justify-between rounded-xl border border-white bg-black p-3 text-xs leading-5 text-white"
+                  >
+                    <div className="grid gap-2">
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-400">
+                          Keyword
+                        </div>
+                        <div className="font-bold">
+                          {rule.phrase}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-400">
+                          Emotion
+                        </div>
+                        <div>
+                          {
+                            getChatKeywordEmotionOption(
+                              rule.emotionKey
+                            ).label
+                          }
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-400">
+                          The model responds:
+                        </div>
+                        <div className="text-zinc-200">
+                          {rule.reply ||
+                            "No custom reply set."}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onDeleteChatKeyword(
+                          rule.id
+                        )
+                      }
+                      className="mt-3 rounded border border-red-400 bg-black px-2 py-1 text-[10px] font-bold text-red-300 transition hover:bg-red-500 hover:text-white"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+type TeacherModeDialogProps = {
+  aiResponseMode: AiResponseMode;
+  customSafetyTermInput: string;
+  geminiApiKey: string;
+  geminiModel: string;
+  geminiStatus: string;
+  isOpen: boolean;
+  newTeacherPasscode: string;
+  safetyPolicy: ChildSafetyPolicy;
+  teacherModeStatus: string;
+  teacherPasscodeInput: string;
+  teacherUnlocked: boolean;
+  onAddCustomSafetyTerm: () => void;
+  onChangeAiResponseMode: (mode: AiResponseMode) => void;
+  onChangeGeminiApiKey: (value: string) => void;
+  onChangeGeminiModel: (value: string) => void;
+  onChangeNewTeacherPasscode: (value: string) => void;
+  onChangeTeacherPasscode: () => void;
+  onChangeTeacherPasscodeInput: (value: string) => void;
+  onChangeCustomSafetyTermInput: (value: string) => void;
+  onClearStatus: () => void;
+  onClose: () => void;
+  onExportRules: () => void;
+  onImportRulesText: (jsonText: string) => void;
+  onLock: () => void;
+  onResetPolicy: () => void;
+  onUnlock: () => void;
+  onUpdateSafetyPolicy: (policy: ChildSafetyPolicy) => void;
+};
+
+
+function TeacherModeDialog({
+  aiResponseMode,
+  customSafetyTermInput,
+  geminiApiKey,
+  geminiModel,
+  geminiStatus,
+  isOpen,
+  newTeacherPasscode,
+  safetyPolicy,
+  teacherModeStatus,
+  teacherPasscodeInput,
+  teacherUnlocked,
+  onAddCustomSafetyTerm,
+  onChangeAiResponseMode,
+  onChangeGeminiApiKey,
+  onChangeGeminiModel,
+  onChangeNewTeacherPasscode,
+  onChangeTeacherPasscode,
+  onChangeTeacherPasscodeInput,
+  onChangeCustomSafetyTermInput,
+  onClearStatus,
+  onClose,
+  onExportRules,
+  onImportRulesText,
+  onLock,
+  onResetPolicy,
+  onUnlock,
+  onUpdateSafetyPolicy,
+}: TeacherModeDialogProps) {
+  const importInputRef =
+    useRef<HTMLInputElement>(null);
+
+  const handleImportFile = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ): void => {
+    const file =
+      event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    void file
+      .text()
+      .then(onImportRulesText);
+
+    event.target.value = "";
+  };
+
+  return (
+    <Dialog
+      isOpen={isOpen}
+      toggleDialog={onClose}
+    >
+      <div className="flex max-h-[88vh] w-[min(94vw,920px)] flex-col gap-4 overflow-hidden bg-black p-5 text-white">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold">
+              Teacher Mode
+            </h2>
+
+            <p className="mt-1 text-xs text-zinc-300">
+              Protected settings for classroom safety, robot customization, and advanced chat behavior.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded border border-white bg-black px-3 py-1 text-xs font-bold text-white transition hover:bg-white hover:text-black"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="min-h-0 overflow-auto pr-1">
+          {!teacherUnlocked ? (
+            <div className="mx-auto grid max-w-md gap-3 rounded-xl border border-white bg-black p-4">
+              <div className="rounded-lg border border-white bg-black p-3 text-xs leading-5 text-white">
+                Teacher Mode protects safety rules, chat keywords, Gemini settings, robot name, and profile deletion.
+              </div>
+
+              <input
+                value={teacherPasscodeInput}
+                onChange={(event) =>
+                  onChangeTeacherPasscodeInput(
+                    event.target.value
+                  )
+                }
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    onUnlock();
+                  }
+                }}
+                className={`${inputClass} w-full`}
+                placeholder="Teacher passcode"
+                type="password"
+              />
+
+              <button
+                type="button"
+                onClick={onUnlock}
+                className={`${buttonClass} w-full`}
+              >
+                Unlock Teacher Mode
+              </button>
+
+              {teacherModeStatus && (
+                <div className="rounded-lg border border-white bg-black p-2 text-[11px] leading-4 text-white">
+                  {teacherModeStatus}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              <div className="grid gap-3 rounded-xl border border-emerald-400 bg-black p-3 text-emerald-100">
+                <div className="text-xs leading-5">
+                  Teacher Mode unlocked. Safety still runs before memory, local ML, Gemini, and custom chat keywords.
+                </div>
+
+                <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+                  <div className="rounded-lg border border-white bg-black p-2 text-xs text-white">
+                    <span className="font-bold">
+                      Actual passcode:
+                    </span>{" "}
+                    {safetyPolicy.teacherPasscode}
+                  </div>
+
+                  <input
+                    value={newTeacherPasscode}
+                    onChange={(event) =>
+                      onChangeNewTeacherPasscode(
+                        event.target.value
+                      )
+                    }
+                    className={`${inputClass} w-full`}
+                    placeholder="New passcode"
+                    type="password"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={onChangeTeacherPasscode}
+                    className={buttonClass}
+                  >
+                    Save
+                  </button>
+                </div>
+
+                <div className="grid gap-3 rounded-lg border border-white bg-black p-3 text-white">
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+                    AI response settings
+                  </div>
+
+                  <div className="grid gap-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+                      AI response mode
+                    </label>
+
+                    <select
+                      value={aiResponseMode}
+                      onChange={(event) =>
+                        onChangeAiResponseMode(
+                          event.target
+                            .value as AiResponseMode
+                        )
+                      }
+                      className={`${inputClass} w-full`}
+                    >
+                      <option
+                        value="local_only"
+                        className="bg-black text-white"
+                      >
+                        Local only
+                      </option>
+                      <option
+                        value="smart_fallback"
+                        className="bg-black text-white"
+                      >
+                        Smart Gemini fallback
+                      </option>
+                      <option
+                        value="rescue_with_gemini"
+                        className="bg-black text-white"
+                      >
+                        Rescue with Gemini
+                      </option>
+                    </select>
+
+                    <div className="rounded-lg border border-zinc-700 bg-black p-2 text-[10px] leading-4 text-zinc-300">
+                      Current mode: {aiResponseModeLabel(aiResponseMode)}.
+                      Local only never calls Gemini. Smart fallback calls Gemini when local confidence is low.
+                      Rescue mode tries local first and only calls Gemini if the local reply would be too weak.
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <input
+                      value={geminiModel}
+                      onChange={(event) =>
+                        onChangeGeminiModel(
+                          event.target.value
+                        )
+                      }
+                      className={`${inputClass} w-full`}
+                      placeholder="Gemini model, e.g. gemini-2.5-flash"
+                    />
+
+                    <input
+                      value={geminiApiKey}
+                      onChange={(event) =>
+                        onChangeGeminiApiKey(
+                          event.target.value
+                        )
+                      }
+                      className={`${inputClass} w-full`}
+                      placeholder="Gemini API key"
+                      type="password"
+                    />
+                  </div>
+
+                  <div className="rounded-lg border border-white bg-black p-2 text-[10px] leading-4 text-white">
+                    Demo mode: the API key is stored only in this browser localStorage.
+                    For production, use a backend proxy instead of exposing keys in the frontend.
+                  </div>
+
+                  {geminiStatus && (
+                    <div className="rounded-lg border border-white bg-black p-2 text-[10px] leading-4 text-white">
+                      {geminiStatus}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={onLock}
+                  className="w-fit rounded border border-yellow-400 bg-black px-3 py-1 text-xs font-bold text-yellow-200 transition hover:bg-yellow-400 hover:text-black"
+                >
+                  Lock Teacher Mode
+                </button>
+              </div>
+
+              <div className="grid gap-3 rounded-xl border border-white bg-black p-3">
+                <div className="grid gap-2 md:grid-cols-2">
+                  <div className="rounded-lg border border-zinc-700 bg-zinc-950 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-bold text-white">
+                          Exact identical blocked words identified
+                        </div>
+
+                        <div className="mt-1 text-[11px] leading-4 text-zinc-300">
+                          Blocks configured exact terms and enabled safety categories before the chat response pipeline continues.
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onUpdateSafetyPolicy({
+                            ...safetyPolicy,
+                            enabled:
+                              !safetyPolicy.enabled,
+                          })
+                        }
+                        className={`rounded border px-3 py-1 text-xs font-bold transition ${
+                          safetyPolicy.enabled
+                            ? "border-emerald-300 bg-emerald-300 text-black"
+                            : "border-zinc-500 bg-black text-zinc-200"
+                        }`}
+                      >
+                        {safetyPolicy.enabled
+                          ? "On"
+                          : "Off"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-zinc-700 bg-zinc-950 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-bold text-white">
+                          Synonyms of identical blocked words identified
+                        </div>
+
+                        <div className="mt-1 text-[11px] leading-4 text-zinc-300">
+                          Uses fuzzy, semantic, and local classifier checks to catch unsafe paraphrases or related wording.
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onUpdateSafetyPolicy({
+                            ...safetyPolicy,
+                            semanticClassifierEnabled:
+                              !safetyPolicy.semanticClassifierEnabled,
+                          })
+                        }
+                        className={`rounded border px-3 py-1 text-xs font-bold transition ${
+                          safetyPolicy.semanticClassifierEnabled
+                            ? "border-emerald-300 bg-emerald-300 text-black"
+                            : "border-zinc-500 bg-black text-zinc-200"
+                        }`}
+                      >
+                        {safetyPolicy.semanticClassifierEnabled
+                          ? "On"
+                          : "Off"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+                    Blocked keyword categories
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {CHILD_SAFETY_CATEGORY_OPTIONS.map(
+                      (option) => {
+                        const isEnabled =
+                          safetyPolicy
+                            .enabledCategories[
+                            option.key
+                          ];
+
+                        return (
+                          <button
+                            key={option.key}
+                            type="button"
+                            onClick={() =>
+                              onUpdateSafetyPolicy({
+                                ...safetyPolicy,
+                                enabledCategories: {
+                                  ...safetyPolicy.enabledCategories,
+                                  [option.key]:
+                                    !isEnabled,
+                                },
+                              })
+                            }
+                            className={`rounded-lg border p-2 text-left transition ${
+                              isEnabled
+                                ? "border-white bg-white text-black"
+                                : "border-zinc-700 bg-black text-white"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-bold">
+                                {option.label}
+                              </span>
+
+                              <span className="text-[10px] font-bold uppercase">
+                                {isEnabled
+                                  ? "On"
+                                  : "Off"}
+                              </span>
+                            </div>
+
+                            <div className={`mt-1 text-[10px] leading-4 ${
+                              isEnabled
+                                ? "text-zinc-700"
+                                : "text-zinc-400"
+                            }`}>
+                              {option.description}
+                            </div>
+                          </button>
+                        );
+                      }
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-2 rounded-xl border border-white bg-black p-3">
+                <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+                  Custom blocked item
+                </label>
+
+                <div className="flex gap-2">
+                  <input
+                    value={customSafetyTermInput}
+                    onChange={(event) =>
+                      onChangeCustomSafetyTermInput(
+                        event.target.value
+                      )
+                    }
+                    className={`${inputClass} flex-1`}
+                    placeholder="Example: scary topic"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={onAddCustomSafetyTerm}
+                    className={buttonClass}
+                  >
+                    Add
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {safetyPolicy.customBlockedTerms.length === 0 ? (
+                    <div className="text-[11px] text-zinc-400">
+                      No custom blocked terms yet.
+                    </div>
+                  ) : (
+                    safetyPolicy.customBlockedTerms.map(
+                      (term) => (
+                        <span
+                          key={term}
+                          className="inline-flex items-center gap-2 rounded-full border border-zinc-600 bg-zinc-950 px-3 py-1 text-[11px] text-white"
+                        >
+                          {term}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onUpdateSafetyPolicy({
+                                ...safetyPolicy,
+                                customBlockedTerms:
+                                  safetyPolicy.customBlockedTerms.filter(
+                                    (item) =>
+                                      item !== term
+                                  ),
+                              })
+                            }
+                            className="font-bold text-red-300 hover:text-red-100"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      )
+                    )
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-2 rounded-xl border border-white bg-black p-3">
+                <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+                  Safe reply
+                </label>
+
+                <textarea
+                  value={safetyPolicy.safeReply}
+                  onChange={(event) =>
+                    onUpdateSafetyPolicy({
+                      ...safetyPolicy,
+                      safeReply:
+                        event.target.value,
+                    })
+                  }
+                  className={`${inputClass} min-h-[78px] w-full resize-none`}
+                />
+              </div>
+
+              <div className="grid gap-2 rounded-xl border border-white bg-black p-3">
+                <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+                  Import / export safety rules JSON
+                </label>
+
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={handleImportFile}
+                  className="hidden"
+                />
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={onExportRules}
+                    className={buttonClass}
+                  >
+                    Export rules JSON
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      importInputRef.current?.click()
+                    }
+                    className={buttonClass}
+                  >
+                    Import rules JSON
+                  </button>
+                </div>
+
+                <div className="text-[10px] leading-4 text-zinc-400">
+                  The JSON includes passcode, blocking modes, keyword categories, custom blocked items, and the safe reply.
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={onResetPolicy}
+                  className="rounded border border-yellow-400 bg-black px-3 py-1 text-xs font-bold text-yellow-200 transition hover:bg-yellow-400 hover:text-black"
+                >
+                  Reset safety policy
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onClearStatus}
+                  className={buttonClass}
+                >
+                  Clear status
+                </button>
+              </div>
+
+              {teacherModeStatus && (
+                <div className="rounded-lg border border-white bg-black p-2 text-[11px] leading-4 text-white">
+                  {teacherModeStatus}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
 const RobotChatWidget:
   React.FC = () => {
   const { handleDelete } =
@@ -1561,8 +2702,15 @@ const RobotChatWidget:
   ] = useState(false);
 
   const [
-    showAiOptions,
-    setShowAiOptions,
+    memoryViewMode,
+    setMemoryViewMode,
+  ] = useState<MemoryViewMode>(
+    "neural_network"
+  );
+
+  const [
+    showRobotNameDialog,
+    setShowRobotNameDialog,
   ] = useState(false);
 
   const [
@@ -1672,11 +2820,6 @@ const RobotChatWidget:
   const [
     customSafetyTermInput,
     setCustomSafetyTermInput,
-  ] = useState("");
-
-  const [
-    safetyRulesJson,
-    setSafetyRulesJson,
   ] = useState("");
 
   const scrollRef =
@@ -1899,11 +3042,13 @@ const RobotChatWidget:
   };
 
 
-  const handleImportSafetyRules = (): void => {
+  const handleImportSafetyRules = (
+    jsonText: string
+  ): void => {
     try {
       const imported =
         importChildSafetyPolicyJson(
-          safetyRulesJson,
+          jsonText,
           safetyPolicy
         );
 
@@ -1920,14 +3065,31 @@ const RobotChatWidget:
 
 
   const handleExportSafetyRules = (): void => {
-    setSafetyRulesJson(
+    const jsonText =
       exportChildSafetyPolicyJson(
         safetyPolicy
-      )
-    );
+      );
+
+    const blob =
+      new Blob([jsonText], {
+        type: "application/json",
+      });
+
+    const url =
+      URL.createObjectURL(blob);
+
+    const link =
+      document.createElement("a");
+
+    link.href = url;
+    link.download =
+      "xrp-child-safety-rules.json";
+    link.click();
+
+    URL.revokeObjectURL(url);
 
     setTeacherModeStatus(
-      "Safety rules exported to the text box."
+      "Safety rules JSON downloaded."
     );
   };
 
@@ -1957,13 +3119,6 @@ const RobotChatWidget:
 
 
   const handleAddChatKeyword = (): void => {
-    if (!teacherUnlocked) {
-      setTeacherModeStatus(
-        "Unlock Teacher Mode to edit chat keywords."
-      );
-      return;
-    }
-
     const phrase =
       chatKeywordPhrase.trim();
 
@@ -2763,7 +3918,148 @@ const RobotChatWidget:
   };
 
   return (
-    <SensorCard
+    <>
+      <MemoryDialog
+        activeProfile={activeProfile}
+        activeProfileSummary={
+          activeProfileSummary
+        }
+        isOpen={showMemory}
+        mode={memoryViewMode}
+        onClose={() =>
+          setShowMemory(false)
+        }
+        onModeChange={
+          setMemoryViewMode
+        }
+      />
+
+      <RobotNameDialog
+        isOpen={showRobotNameDialog}
+        robotName={robotName}
+        onChangeRobotName={
+          setRobotName
+        }
+        onClose={() =>
+          setShowRobotNameDialog(false)
+        }
+      />
+
+      <ChatKeywordsDialog
+        chatKeywordEmotion={
+          chatKeywordEmotion
+        }
+        chatKeywordPhrase={
+          chatKeywordPhrase
+        }
+        chatKeywordReply={
+          chatKeywordReply
+        }
+        chatKeywordRules={
+          chatKeywordRules
+        }
+        isOpen={showChatKeywords}
+        onAddChatKeyword={
+          handleAddChatKeyword
+        }
+        onChangeEmotion={
+          setChatKeywordEmotion
+        }
+        onChangePhrase={
+          setChatKeywordPhrase
+        }
+        onChangeReply={
+          setChatKeywordReply
+        }
+        onClose={() =>
+          setShowChatKeywords(false)
+        }
+        onDeleteChatKeyword={(ruleId) => {
+          deleteChatKeywordRule(ruleId);
+          setChatKeywordRules(
+            getChatKeywordRules()
+          );
+        }}
+      />
+
+      <TeacherModeDialog
+        aiResponseMode={aiResponseMode}
+        customSafetyTermInput={
+          customSafetyTermInput
+        }
+        geminiApiKey={geminiApiKey}
+        geminiModel={geminiModel}
+        geminiStatus={geminiStatus}
+        isOpen={showTeacherMode}
+        newTeacherPasscode={
+          newTeacherPasscode
+        }
+        safetyPolicy={safetyPolicy}
+        teacherModeStatus={
+          teacherModeStatus
+        }
+        teacherPasscodeInput={
+          teacherPasscodeInput
+        }
+        teacherUnlocked={teacherUnlocked}
+        onAddCustomSafetyTerm={
+          handleAddCustomSafetyTerm
+        }
+        onChangeAiResponseMode={
+          setAiResponseMode
+        }
+        onChangeGeminiApiKey={
+          setGeminiApiKey
+        }
+        onChangeGeminiModel={
+          setGeminiModel
+        }
+        onChangeNewTeacherPasscode={
+          setNewTeacherPasscode
+        }
+        onChangeTeacherPasscode={
+          handleChangeTeacherPasscode
+        }
+        onChangeTeacherPasscodeInput={
+          setTeacherPasscodeInput
+        }
+        onChangeCustomSafetyTermInput={
+          setCustomSafetyTermInput
+        }
+        onClearStatus={() =>
+          setTeacherModeStatus("")
+        }
+        onClose={() =>
+          setShowTeacherMode(false)
+        }
+        onExportRules={
+          handleExportSafetyRules
+        }
+        onImportRulesText={
+          handleImportSafetyRules
+        }
+        onLock={() => {
+          setTeacherUnlocked(false);
+          setTeacherModeStatus(
+            "Teacher Mode locked."
+          );
+        }}
+        onResetPolicy={() => {
+          resetChildSafetyPolicy();
+          setSafetyPolicy(
+            getChildSafetyPolicy()
+          );
+          setTeacherModeStatus(
+            "Safety policy reset."
+          );
+        }}
+        onUnlock={handleTeacherUnlock}
+        onUpdateSafetyPolicy={
+          updateSafetyPolicy
+        }
+      />
+
+      <SensorCard
       title={`${robotName} Chat`}
       icon={<FaCommentDots size={16} />}
       onStart={() => {}}
@@ -2794,59 +4090,106 @@ const RobotChatWidget:
         </button>
       </div>
 
-      <div className="flex h-full w-full flex-col gap-3 rounded-xl bg-black p-3 pt-10 text-xs text-white">
+      <div className="flex h-full w-full flex-col gap-2 rounded-xl bg-black p-3 pt-1 text-xs text-white">
+        <div className="rounded-xl border border-white bg-black px-3 py-1.5 text-white">
+          <div className="min-w-0">
+            <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+              Robot name
+            </div>
+
+            <div className="truncate text-sm font-bold">
+              {robotName}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              setShowRobotNameDialog(true)
+            }
+            className="shrink-0 rounded border border-white bg-black px-3 py-1 text-[10px] font-bold text-white transition hover:bg-white hover:text-black"
+          >
+            Set robot name
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMemoryViewMode(
+                "neural_network"
+              );
+              setShowMemory(true);
+            }}
+            className="shrink-0 rounded border border-white bg-black px-3 py-1 text-[10px] font-bold text-white transition hover:bg-white hover:text-black"
+          >
+            See memory
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setShowTeacherMode(true)
+            }
+            className="shrink-0 rounded border border-white bg-black px-3 py-1 text-[10px] font-bold text-white transition hover:bg-white hover:text-black"
+          >
+            Teacher Mode
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setShowChatKeywords(true)
+            }
+            className="shrink-0 rounded border border-white bg-black px-3 py-1 text-[10px] font-bold text-white transition hover:bg-white hover:text-black"
+          >
+            Chat keywords
+          </button>
+        </div>
+
         <div className={panelClass}>
           <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <div className="font-bold text-white">
-                Active profile
-              </div>
-
-              <div className="truncate text-[11px] text-zinc-300">
-                {activeProfile
-                  ? activeProfile.displayName
-                  : "No profile yet"}
-              </div>
+            <div className="font-bold text-white">
+              Active profile
             </div>
 
             <FaUser size={14} />
           </div>
 
-          {profiles.length > 0 && (
-            <select
-              value={
-                activeProfile?.id ?? ""
-              }
-              onChange={(event) => {
-                const profileId =
-                  event.target.value;
+          <select
+            value={
+              activeProfile?.id ?? ""
+            }
+            onChange={(event) => {
+              const profileId =
+                event.target.value;
 
-                setActiveUserProfileId(
-                  profileId || null
-                );
+              setActiveUserProfileId(
+                profileId || null
+              );
 
-                refreshProfiles();
-              }}
-              className={`${inputClass} mt-2 w-full`}
+              refreshProfiles();
+            }}
+            className={`${inputClass} mt-2 w-full`}
+          >
+            <option
+              value=""
+              className="bg-black text-white"
             >
+              No active profile
+            </option>
+
+            {profiles.map((profile) => (
               <option
-                value=""
+                key={profile.id}
+                value={profile.id}
                 className="bg-black text-white"
               >
-                No active profile
+                {profile.displayName}
               </option>
-
-              {profiles.map((profile) => (
-                <option
-                  key={profile.id}
-                  value={profile.id}
-                  className="bg-black text-white"
-                >
-                  {profile.displayName}
-                </option>
-              ))}
-            </select>
-          )}
+            ))}
+          </select>
 
           {activeProfile && teacherUnlocked && (
             <button
@@ -2865,396 +4208,38 @@ const RobotChatWidget:
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={() =>
-              setShowMemory(
-                (current) => !current
-              )
-            }
-            className={`${buttonClass} mt-2 w-full`}
-          >
-            {showMemory
-              ? "Hide memory"
-              : "See memory"}
-          </button>
-
-          {showMemory && (
-            <div className="mt-2 rounded-lg border border-white bg-black p-2 text-[11px] leading-4 text-white">
-              {activeProfileSummary}
-            </div>
-          )}
         </div>
 
-        <div className={panelClass}>
+        <div className="hidden">
           <button
             type="button"
             onClick={() =>
-              setShowTeacherMode(
-                (current) => !current
-              )
+              setShowTeacherMode(true)
             }
             className={`${buttonClass} w-full`}
           >
-            {showTeacherMode
-              ? "Hide Teacher Mode"
-              : "Teacher Mode"}
+            Teacher Mode
           </button>
-
-          {showTeacherMode && (
-            <div className="mt-3 grid gap-3">
-              {!teacherUnlocked ? (
-                <div className="grid gap-2">
-                  <div className="rounded-lg border border-white bg-black p-2 text-[11px] leading-4 text-white">
-                    Teacher Mode protects safety rules, chat keywords, Gemini settings, and robot customization.
-                    Demo passcode: teacher123
-                  </div>
-
-                  <input
-                    value={teacherPasscodeInput}
-                    onChange={(event) =>
-                      setTeacherPasscodeInput(
-                        event.target.value
-                      )
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        handleTeacherUnlock();
-                      }
-                    }}
-                    className={`${inputClass} w-full`}
-                    placeholder="Teacher passcode"
-                    type="password"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={handleTeacherUnlock}
-                    className={`${buttonClass} w-full`}
-                  >
-                    Unlock Teacher Mode
-                  </button>
-
-                  {teacherModeStatus && (
-                    <div className="rounded-lg border border-white bg-black p-2 text-[10px] leading-4 text-white">
-                      {teacherModeStatus}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="grid gap-3">
-                  <div className="rounded-lg border border-emerald-400 bg-black p-2 text-[11px] leading-4 text-emerald-200">
-                    Teacher Mode unlocked. Safety filter is still applied before memory, ML, Gemini, and custom chat keywords.
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTeacherUnlocked(false);
-                      setTeacherModeStatus(
-                        "Teacher Mode locked."
-                      );
-                    }}
-                    className="rounded border border-yellow-400 bg-black px-3 py-1 text-xs font-bold text-yellow-200 transition hover:bg-yellow-400 hover:text-black"
-                  >
-                    Lock Teacher Mode
-                  </button>
-
-                  <div className="rounded-lg border border-white bg-black p-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateSafetyPolicy({
-                          ...safetyPolicy,
-                          enabled:
-                            !safetyPolicy.enabled,
-                        })
-                      }
-                      className={[
-                        "w-full rounded border border-white px-3 py-1.5 text-xs font-bold transition",
-                        safetyPolicy.enabled
-                          ? "bg-white text-black"
-                          : "bg-black text-white hover:bg-white hover:text-black",
-                      ].join(" ")}
-                    >
-                      Child safety filter:{" "}
-                      {safetyPolicy.enabled
-                        ? "On"
-                        : "Off"}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateSafetyPolicy({
-                          ...safetyPolicy,
-                          semanticClassifierEnabled:
-                            !safetyPolicy.semanticClassifierEnabled,
-                        })
-                      }
-                      className={[
-                        "mt-2 w-full rounded border border-white px-3 py-1.5 text-xs font-bold transition",
-                        safetyPolicy.semanticClassifierEnabled
-                          ? "bg-white text-black"
-                          : "bg-black text-white hover:bg-white hover:text-black",
-                      ].join(" ")}
-                    >
-                      Local safety classifier:{" "}
-                      {safetyPolicy.semanticClassifierEnabled
-                        ? "On"
-                        : "Off"}
-                    </button>
-
-                    <div className="mt-2 rounded border border-zinc-700 bg-black p-2 text-[10px] leading-4 text-zinc-300">
-                      The classifier helps block unsafe paraphrases or synonyms even when the exact blocked word is not used.
-                    </div>
-
-                    <div className="mt-2 grid gap-2">
-                      {CHILD_SAFETY_CATEGORY_OPTIONS.map(
-                        (option) => (
-                          <label
-                            key={option.key}
-                            className="flex items-start gap-2 rounded border border-zinc-700 bg-black p-2 text-[11px] leading-4 text-white"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={
-                                safetyPolicy
-                                  .enabledCategories[
-                                  option.key
-                                ]
-                              }
-                              onChange={(event) =>
-                                updateSafetyPolicy({
-                                  ...safetyPolicy,
-                                  enabledCategories: {
-                                    ...safetyPolicy.enabledCategories,
-                                    [option.key]:
-                                      event.target.checked,
-                                  },
-                                })
-                              }
-                              className="mt-1"
-                            />
-
-                            <span>
-                              <span className="font-bold">
-                                {option.label}
-                              </span>
-                              <br />
-                              <span className="text-zinc-300">
-                                {option.description}
-                              </span>
-                            </span>
-                          </label>
-                        )
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2 rounded-lg border border-white bg-black p-2">
-                    <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
-                      Safe reply
-                    </label>
-
-                    <textarea
-                      value={safetyPolicy.safeReply}
-                      onChange={(event) =>
-                        updateSafetyPolicy({
-                          ...safetyPolicy,
-                          safeReply:
-                            event.target.value,
-                        })
-                      }
-                      className={`${inputClass} min-h-[72px] w-full resize-none`}
-                    />
-                  </div>
-
-                  <div className="grid gap-2 rounded-lg border border-white bg-black p-2">
-                    <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
-                      Custom blocked term
-                    </label>
-
-                    <div className="flex gap-2">
-                      <input
-                        value={customSafetyTermInput}
-                        onChange={(event) =>
-                          setCustomSafetyTermInput(
-                            event.target.value
-                          )
-                        }
-                        className={`${inputClass} flex-1`}
-                        placeholder="Example: scary topic"
-                      />
-
-                      <button
-                        type="button"
-                        onClick={handleAddCustomSafetyTerm}
-                        className={buttonClass}
-                      >
-                        Add
-                      </button>
-                    </div>
-
-                    <div className="grid gap-1">
-                      {safetyPolicy.customBlockedTerms.length === 0 ? (
-                        <div className="text-[10px] text-zinc-400">
-                          No custom blocked terms yet.
-                        </div>
-                      ) : (
-                        safetyPolicy.customBlockedTerms.map(
-                          (term) => (
-                            <div
-                              key={term}
-                              className="flex items-center justify-between gap-2 rounded border border-zinc-700 bg-black px-2 py-1 text-[10px] text-white"
-                            >
-                              <span>{term}</span>
-
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateSafetyPolicy({
-                                    ...safetyPolicy,
-                                    customBlockedTerms:
-                                      safetyPolicy.customBlockedTerms.filter(
-                                        (item) =>
-                                          item !== term
-                                      ),
-                                  })
-                                }
-                                className="rounded border border-red-400 px-2 py-0.5 text-red-300 hover:bg-red-500 hover:text-white"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          )
-                        )
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2 rounded-lg border border-white bg-black p-2">
-                    <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
-                      Import / export safety rules JSON
-                    </label>
-
-                    <textarea
-                      value={safetyRulesJson}
-                      onChange={(event) =>
-                        setSafetyRulesJson(
-                          event.target.value
-                        )
-                      }
-                      className={`${inputClass} min-h-[90px] w-full resize-none font-mono`}
-                      placeholder="{ ... }"
-                    />
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={handleExportSafetyRules}
-                        className={buttonClass}
-                      >
-                        Export rules
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleImportSafetyRules}
-                        className={buttonClass}
-                      >
-                        Import rules
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2 rounded-lg border border-white bg-black p-2">
-                    <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
-                      Change teacher passcode
-                    </label>
-
-                    <input
-                      value={newTeacherPasscode}
-                      onChange={(event) =>
-                        setNewTeacherPasscode(
-                          event.target.value
-                        )
-                      }
-                      className={`${inputClass} w-full`}
-                      placeholder="New passcode"
-                      type="password"
-                    />
-
-                    <button
-                      type="button"
-                      onClick={handleChangeTeacherPasscode}
-                      className={buttonClass}
-                    >
-                      Save passcode
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        resetChildSafetyPolicy();
-                        setSafetyPolicy(
-                          getChildSafetyPolicy()
-                        );
-                        setTeacherModeStatus(
-                          "Safety policy reset."
-                        );
-                      }}
-                      className="rounded border border-yellow-400 bg-black px-3 py-1 text-xs font-bold text-yellow-200 transition hover:bg-yellow-400 hover:text-black"
-                    >
-                      Reset safety policy
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setTeacherModeStatus("")
-                      }
-                      className={buttonClass}
-                    >
-                      Clear status
-                    </button>
-                  </div>
-
-                  {teacherModeStatus && (
-                    <div className="rounded-lg border border-white bg-black p-2 text-[10px] leading-4 text-white">
-                      {teacherModeStatus}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
-        <div className={panelClass}>
+        <div className="hidden">
           <button
             type="button"
             onClick={() =>
-              setShowChatKeywords(
-                (current) => !current
-              )
+              setShowChatKeywords(true)
             }
             className={`${buttonClass} w-full`}
           >
-            {showChatKeywords
-              ? "Hide chat keywords"
-              : "See chat keywords"}
+            See chat keywords
           </button>
 
-          {showChatKeywords && !teacherUnlocked && (
+          {false && showChatKeywords && !teacherUnlocked && (
             <div className="mt-3 rounded-lg border border-yellow-400 bg-black p-2 text-[11px] leading-4 text-yellow-200">
               Unlock Teacher Mode to edit custom chat keywords.
             </div>
           )}
 
-          {showChatKeywords && teacherUnlocked && (
+          {false && showChatKeywords && teacherUnlocked && (
             <div className="mt-3 grid gap-2">
               <div className="grid gap-1">
                 <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
@@ -3376,126 +4361,6 @@ const RobotChatWidget:
           )}
         </div>
 
-        <div className={panelClass}>
-          <button
-            type="button"
-            onClick={() =>
-              setShowAiOptions(
-                (current) => !current
-              )
-            }
-            className={`${buttonClass} w-full`}
-          >
-            {showAiOptions
-              ? "Hide AI options"
-              : "See AI options"}
-          </button>
-
-          {showAiOptions && !teacherUnlocked && (
-            <div className="mt-3 rounded-lg border border-yellow-400 bg-black p-2 text-[11px] leading-4 text-yellow-200">
-              Unlock Teacher Mode to edit the robot name, Gemini settings, or API key.
-            </div>
-          )}
-
-          {showAiOptions && teacherUnlocked && (
-            <div className="mt-3 grid gap-2">
-              <div className="grid gap-1">
-                <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
-                  Robot name
-                </label>
-
-                <input
-                  value={robotName}
-                  onChange={(event) =>
-                    setRobotName(
-                      event.target.value ||
-                        "XRP Robot"
-                    )
-                  }
-                  className={`${inputClass} w-full`}
-                  placeholder="XRP Robot"
-                />
-              </div>
-
-              <div className="grid gap-1">
-                <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
-                  AI response mode
-                </label>
-
-                <select
-                  value={aiResponseMode}
-                  onChange={(event) =>
-                    setAiResponseMode(
-                      event.target
-                        .value as AiResponseMode
-                    )
-                  }
-                  className={`${inputClass} w-full`}
-                >
-                  <option
-                    value="local_only"
-                    className="bg-black text-white"
-                  >
-                    Local only
-                  </option>
-                  <option
-                    value="smart_fallback"
-                    className="bg-black text-white"
-                  >
-                    Smart Gemini fallback
-                  </option>
-                  <option
-                    value="rescue_with_gemini"
-                    className="bg-black text-white"
-                  >
-                    Rescue with Gemini
-                  </option>
-                </select>
-
-                <div className="rounded-lg border border-zinc-700 bg-black p-2 text-[10px] leading-4 text-zinc-300">
-                  Current mode: {aiResponseModeLabel(aiResponseMode)}.
-                  Local only never calls Gemini. Smart fallback calls Gemini before local response when confidence is low.
-                  Rescue mode tries local first and only calls Gemini if the local reply would be too weak.
-                </div>
-              </div>
-
-              <input
-                value={geminiModel}
-                onChange={(event) =>
-                  setGeminiModel(
-                    event.target.value
-                  )
-                }
-                className={`${inputClass} w-full`}
-                placeholder="gemini-2.5-flash"
-              />
-
-              <input
-                value={geminiApiKey}
-                onChange={(event) =>
-                  setGeminiApiKey(
-                    event.target.value
-                  )
-                }
-                className={`${inputClass} w-full`}
-                placeholder="Gemini API key"
-                type="password"
-              />
-
-              <div className="rounded-lg border border-white bg-black p-2 text-[10px] leading-4 text-white">
-                Demo mode: the API key is stored only in this browser localStorage.
-                For production, use a backend proxy instead of exposing keys in the frontend.
-              </div>
-
-              {geminiStatus && (
-                <div className="rounded-lg border border-white bg-black p-2 text-[10px] leading-4 text-white">
-                  {geminiStatus}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
         <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-white bg-black p-3">
           <div className="flex flex-col gap-2">
             {messages.map((message) => (
@@ -3566,12 +4431,9 @@ const RobotChatWidget:
           </button>
         </div>
 
-        <div className="rounded-xl border border-white bg-black p-2 text-[10px] leading-4 text-white">
-          Layered mode: rules + structured memory + local ML emotion classifier + optional Gemini fallback.
-          Gemini is only used when both local layers are not confident.
-        </div>
       </div>
-    </SensorCard>
+      </SensorCard>
+    </>
   );
 };
 
