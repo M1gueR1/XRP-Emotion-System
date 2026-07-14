@@ -89,21 +89,23 @@ type RecognizedPersonEventDetail = {
   cameraSessionId: string;
 };
 
-
-const cameraToggleButtonLabel = (
-  isActive: boolean,
-  status: string
-): string => {
-  if (isActive) {
-    return "Turn camera off";
-  }
-
-  if (status === "requesting") {
-    return "Opening...";
-  }
-
-  return "Turn camera on";
-};
+const FACE_SETUP_STEPS = [
+  {
+    title: "Look straight ahead",
+    hint: "Keep your face inside the oval.",
+    arrow: "↑",
+  },
+  {
+    title: "Turn a little to one side",
+    hint: "Move your head gently, like a tiny profile view.",
+    arrow: "↗",
+  },
+  {
+    title: "Now turn the other way",
+    hint: "One more gentle turn so the robot learns you better.",
+    arrow: "↖",
+  },
+];
 
 
 const faceDetectionStatusLabel = (
@@ -336,6 +338,16 @@ const CameraVisionWidget: React.FC = () => {
   ] = useState(false);
 
   const [
+    showKnownPeople,
+    setShowKnownPeople,
+  ] = useState(false);
+
+  const [
+    faceSetupFlash,
+    setFaceSetupFlash,
+  ] = useState(false);
+
+  const [
     cameraEmotionControlEnabled,
     setCameraEmotionControlEnabled,
   ] = useState(false);
@@ -437,6 +449,9 @@ const CameraVisionWidget: React.FC = () => {
       null
     );
 
+  const faceSetupVideoRef =
+    useRef<HTMLVideoElement | null>(null);
+
   const cameraSessionIdRef =
     useRef("");
 
@@ -484,6 +499,27 @@ const CameraVisionWidget: React.FC = () => {
         faceTeacherUnlocked
       ),
   });
+
+  useEffect(() => {
+    const setupVideo =
+      faceSetupVideoRef.current;
+    const sourceVideo =
+      cameraVideoRef.current;
+
+    if (!setupVideo || !sourceVideo) {
+      return;
+    }
+
+    setupVideo.srcObject =
+      sourceVideo.srcObject;
+
+    if (showVisionOptions && isCameraActive) {
+      void setupVideo.play().catch(() => {});
+    }
+  }, [
+    isCameraActive,
+    showVisionOptions,
+  ]);
 
   useEffect(() => {
     const refreshProfiles = (): void => {
@@ -880,6 +916,12 @@ const CameraVisionWidget: React.FC = () => {
         const sampleCount =
           profile.descriptors.length;
 
+        setFaceSetupFlash(true);
+        window.setTimeout(
+          () => setFaceSetupFlash(false),
+          620
+        );
+
         setFaceIdentityStatus(
           sampleCount <
             FACE_IDENTITY_MIN_SAMPLES
@@ -890,6 +932,15 @@ const CameraVisionWidget: React.FC = () => {
         setFaceIdentityProfiles(
           getFaceIdentityProfiles()
         );
+
+        if (
+          sampleCount >=
+          FACE_IDENTITY_MIN_SAMPLES
+        ) {
+          window.setTimeout(() => {
+            setShowVisionOptions(false);
+          }, 1300);
+        }
       } catch (error) {
         setFaceIdentityStatus(
           error instanceof Error
@@ -924,6 +975,20 @@ const CameraVisionWidget: React.FC = () => {
       setFaceIdentityStatus(
         `${profile.displayName} was deleted.`
       );
+    };
+
+  const handleOpenFaceSetup =
+    (): void => {
+      setShowVisionOptions(true);
+      setFaceRecognitionEnabled(true);
+
+      if (
+        !isCameraActive &&
+        isCameraSupported &&
+        cameraStatus !== "requesting"
+      ) {
+        void startCamera();
+      }
     };
 
   useEffect(() => {
@@ -1047,6 +1112,46 @@ const CameraVisionWidget: React.FC = () => {
     faceIdentityRecognitionStatus !==
       "loading";
 
+  const selectedUserProfile =
+    availableUserProfiles.find(
+      (profile) =>
+        profile.id === selectedUserProfileId
+    );
+
+  const selectedFaceIdentityProfile =
+    faceIdentityProfiles.find(
+      (profile) =>
+        profile.userProfileId ===
+        selectedUserProfileId
+    );
+
+  const faceSetupSampleCount =
+    Math.min(
+      selectedFaceIdentityProfile
+        ?.descriptors.length ?? 0,
+      FACE_IDENTITY_MIN_SAMPLES
+    );
+
+  const faceSetupIsComplete =
+    faceSetupSampleCount >=
+    FACE_IDENTITY_MIN_SAMPLES;
+
+  const faceSetupStep =
+    FACE_SETUP_STEPS[
+      Math.min(
+        faceSetupSampleCount,
+        FACE_SETUP_STEPS.length - 1
+      )
+    ];
+
+  const faceSetupProgressPercent =
+    Math.round(
+      (
+        faceSetupSampleCount /
+        FACE_IDENTITY_MIN_SAMPLES
+      ) * 100
+    );
+
   return (
     <>
       <Dialog
@@ -1059,11 +1164,11 @@ const CameraVisionWidget: React.FC = () => {
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold">
-                Vision options
+                Recognize face
               </h2>
 
               <p className="mt-1 text-xs text-zinc-300">
-                Camera emotion connection, face recognition, and live expression scores.
+                Follow 3 quick steps so the robot can recognize you.
               </p>
             </div>
 
@@ -1080,6 +1185,194 @@ const CameraVisionWidget: React.FC = () => {
 
           <div className="min-h-0 overflow-auto pr-1">
             <div className="grid gap-3">
+              <select
+                value={selectedUserProfileId}
+                onChange={(event) => {
+                  setSelectedUserProfileId(
+                    event.target.value
+                  );
+                }}
+                className="w-full rounded-lg border border-sky-300 bg-sky-950/40 px-3 py-2 text-xs font-bold text-white placeholder:text-zinc-500"
+              >
+                <option value="">
+                  Choose existing chat profile
+                </option>
+
+                {availableUserProfiles.map(
+                  (profile) => (
+                    <option
+                      key={profile.id}
+                      value={profile.id}
+                    >
+                      {profile.displayName}
+                    </option>
+                  )
+                )}
+              </select>
+
+              {faceSetupIsComplete ? (
+                <div className="rounded-2xl border border-emerald-400 bg-emerald-950/50 px-4 py-10 text-center">
+                  <div className="text-4xl">
+                    ✓
+                  </div>
+
+                  <div className="mt-3 text-xl font-black">
+                    Face registration completed successfully.
+                  </div>
+
+                  <div className="mt-2 text-xs text-emerald-100">
+                    Returning to the dashboard...
+                  </div>
+                </div>
+              ) : (
+              <div className="grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
+                <div className="relative overflow-hidden rounded-2xl border border-white bg-zinc-950">
+                  {isCameraActive ? (
+                    <video
+                      ref={faceSetupVideoRef}
+                      autoPlay
+                      muted
+                      playsInline
+                      className={[
+                        "aspect-video h-full w-full scale-x-[-1] bg-black object-cover transition-all duration-500 ease-out",
+                        faceSetupFlash
+                          ? "opacity-75 blur-[1px]"
+                          : "opacity-100 blur-0",
+                      ].join(" ")}
+                    />
+                  ) : (
+                    <div className="flex aspect-video h-full w-full items-center justify-center px-4 text-center text-xs font-semibold text-white">
+                      The camera will appear here after you allow camera permission.
+                    </div>
+                  )}
+
+                  <div
+                    className={[
+                      "pointer-events-none absolute inset-0 z-10 bg-white transition-opacity duration-500 ease-out",
+                      faceSetupFlash
+                        ? "opacity-55"
+                        : "opacity-0",
+                    ].join(" ")}
+                  />
+
+                  <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+                    <div className="relative h-[72%] w-[46%] rounded-[50%] border-4 border-blue-300/90 shadow-[0_0_32px_rgba(96,165,250,0.55)]">
+                      {!faceSetupIsComplete && (
+                        <div className="absolute -right-16 top-1/2 -translate-y-1/2 rounded-full border border-blue-200 bg-blue-600/90 px-4 py-2 text-4xl font-black text-white shadow-xl">
+                          {faceSetupStep.arrow}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="absolute left-3 top-3 z-30 rounded-full bg-black/80 px-3 py-1 text-xs font-bold text-white">
+                    Step{" "}
+                    {Math.min(
+                      faceSetupSampleCount + 1,
+                      FACE_IDENTITY_MIN_SAMPLES
+                    )}
+                    /{FACE_IDENTITY_MIN_SAMPLES}
+                  </div>
+                </div>
+
+                <div className="flex flex-col justify-between rounded-2xl border border-white bg-black p-4">
+                  <div className="space-y-3">
+                    <div className="rounded-full border border-blue-300/70 bg-zinc-800 p-1">
+                      <div
+                        className="h-3 rounded-full bg-gradient-to-r from-blue-500 via-sky-400 to-emerald-400 transition-all duration-700 ease-out"
+                        style={{
+                          width: `${faceSetupProgressPercent}%`,
+                        }}
+                      />
+                    </div>
+
+                    {faceSetupIsComplete ? (
+                      <div className="rounded-2xl border border-emerald-400 bg-emerald-950 px-4 py-5 text-center">
+                        <div className="text-4xl">
+                          ✓
+                        </div>
+
+                        <div className="mt-2 text-lg font-black">
+                          Face saved successfully!
+                        </div>
+
+                        <div className="mt-1 text-xs text-emerald-100">
+                          The robot can now recognize{" "}
+                          {selectedFaceIdentityProfile
+                            ?.displayName ??
+                            selectedUserProfile
+                              ?.displayName ??
+                            "this profile"}
+                          .
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className={[
+                          "rounded-2xl border border-blue-400 bg-blue-950 px-4 py-5 text-center transition-all duration-500 ease-out",
+                          faceSetupFlash
+                            ? "translate-x-2 opacity-70"
+                            : "translate-x-0 opacity-100",
+                        ].join(" ")}
+                      >
+                        <div className="text-5xl font-black">
+                          {faceSetupStep.arrow}
+                        </div>
+
+                        <div className="mt-2 text-lg font-black">
+                          {faceSetupStep.title}
+                        </div>
+
+                        <div className="mt-1 text-xs text-blue-100">
+                          {faceSetupStep.hint}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-center text-[11px]">
+                      {faceIdentityStatus}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={
+                      !canCaptureFaceSample ||
+                      faceSetupIsComplete
+                    }
+                    onClick={
+                      handleCaptureFaceSample
+                    }
+                    className={[
+                      "mt-4 flex items-center justify-center gap-3 rounded-xl border border-white px-4 py-3 text-sm font-black text-white transition",
+                      faceSetupIsComplete
+                        ? "cursor-not-allowed bg-emerald-700 opacity-80"
+                        : canCaptureFaceSample
+                          ? "bg-blue-600 hover:bg-blue-700"
+                          : noFaceReadyForSample
+                            ? "cursor-not-allowed bg-red-700"
+                            : "cursor-not-allowed bg-zinc-800 opacity-60",
+                    ].join(" ")}
+                  >
+                    <span>
+                      {faceSetupIsComplete
+                        ? "All samples saved"
+                        : noFaceReadyForSample
+                          ? "No face detected"
+                          : "Capture face sample"}
+                    </span>
+                    {!faceSetupIsComplete && (
+                      <span className="text-xl">
+                        →
+                      </span>
+                    )}
+                  </button>
+                </div>
+              </div>
+              )}
+
+              {false && (
+                <>
               <div className="rounded-xl border border-white bg-black p-3 text-white">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-[11px] font-bold">
@@ -1423,11 +1716,13 @@ const CameraVisionWidget: React.FC = () => {
 
                         <div className="mt-1 font-bold text-white">
                           {expressionSignalLabel(
-                            lastCameraDecision.signal
+                            lastCameraDecision?.signal ??
+                              "neutral"
                           )}{" "}
                           ·{" "}
                           {percentageLabel(
-                            lastCameraDecision.confidence
+                            lastCameraDecision?.confidence ??
+                              0
                           )}
                         </div>
                       </div>
@@ -1439,7 +1734,8 @@ const CameraVisionWidget: React.FC = () => {
 
                         <div className="mt-1 text-base font-bold text-white">
                           {
-                            lastCameraDecision.emotionLabel
+                            lastCameraDecision?.emotionLabel ??
+                              ""
                           }
                         </div>
                       </div>
@@ -1450,12 +1746,16 @@ const CameraVisionWidget: React.FC = () => {
                         </div>
 
                         <div className="mt-1 leading-5 text-white">
-                          {lastCameraDecision.reason}
+                          {lastCameraDecision?.reason ??
+                            ""}
                         </div>
                       </div>
                     </div>
                   </div>
                 )}
+
+                </>
+              )}
 
               {faceDetectionErrorMessage && (
                 <div className="rounded-lg bg-red-950 px-3 py-2 text-[11px] font-semibold text-white">
@@ -1475,6 +1775,133 @@ const CameraVisionWidget: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        isOpen={showKnownPeople}
+        toggleDialog={() =>
+          setShowKnownPeople(false)
+        }
+      >
+        <div className="flex max-h-[88vh] w-[min(94vw,720px)] flex-col gap-4 overflow-hidden bg-black p-5 text-white">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold">
+                Known people list
+              </h2>
+
+              <p className="mt-1 text-xs text-zinc-300">
+                Faces enrolled locally for existing Robot Chat profiles.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowKnownPeople(false)
+              }
+              className="rounded border border-white bg-black px-3 py-1 text-xs font-bold text-white transition hover:bg-white hover:text-black"
+            >
+              Close
+            </button>
+          </div>
+
+          <div className="min-h-0 overflow-auto pr-1">
+            {faceIdentityProfiles.length === 0 ? (
+              <div className="rounded-xl border border-zinc-700 bg-zinc-950 p-4 text-sm text-zinc-300">
+                No enrolled people yet.
+              </div>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {faceIdentityProfiles.map(
+                  (profile) => (
+                    <div
+                      key={profile.id}
+                      className="rounded-xl border border-sky-400/70 bg-sky-950/20 p-3"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-black text-white">
+                            {profile.displayName}
+                          </div>
+
+                          <div className="mt-1 text-[11px] text-sky-100/80">
+                            {profile.descriptors.length}/
+                            {FACE_IDENTITY_MIN_SAMPLES} samples saved
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPendingDeleteFaceProfileId(
+                              profile.id
+                            );
+                            setDeleteFacePasscode("");
+                          }}
+                          className="shrink-0 rounded border border-red-400 px-2 py-1 text-[10px] font-bold text-red-300 transition hover:bg-red-500 hover:text-white"
+                        >
+                          Delete
+                        </button>
+                      </div>
+
+                      {pendingDeleteFaceProfileId ===
+                        profile.id && (
+                        <div className="mt-3 grid gap-2">
+                          <input
+                            type="password"
+                            value={deleteFacePasscode}
+                            onChange={(event) =>
+                              setDeleteFacePasscode(
+                                event.target.value
+                              )
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                handleConfirmDeleteFaceProfile(
+                                  profile
+                                );
+                              }
+                            }}
+                            placeholder="Teacher passcode"
+                            className="rounded-lg border border-white bg-black px-3 py-2 text-xs text-white placeholder:text-zinc-500"
+                          />
+
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleConfirmDeleteFaceProfile(
+                                  profile
+                                )
+                              }
+                              className="rounded border border-red-400 px-2 py-1 text-[10px] font-bold text-red-300 transition hover:bg-red-500 hover:text-white"
+                            >
+                              Confirm delete
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPendingDeleteFaceProfileId(
+                                  ""
+                                );
+                                setDeleteFacePasscode("");
+                              }}
+                              className="rounded border border-white px-2 py-1 text-[10px] font-bold text-white transition hover:bg-white hover:text-black"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
           </div>
         </div>
       </Dialog>
@@ -1519,20 +1946,34 @@ const CameraVisionWidget: React.FC = () => {
                 }
               }}
               className={[
-                "rounded-lg px-3 py-1.5 text-xs font-bold text-white transition",
+                "rounded-lg border px-3 py-1.5 text-xs font-bold text-white transition",
                 isCameraActive
-                  ? "bg-red-600 hover:bg-red-700"
-                  : "bg-blue-600 hover:bg-blue-700",
+                  ? "bg-emerald-700 hover:bg-emerald-600"
+                  : "bg-red-700 hover:bg-red-600",
                 !isCameraSupported ||
                 cameraStatus === "requesting"
                   ? "cursor-not-allowed opacity-50"
                   : "",
               ].join(" ")}
+              style={{
+                backgroundColor:
+                  cameraStatus === "requesting"
+                    ? "#334155"
+                    : isCameraActive
+                      ? "#047857"
+                      : "#b91c1c",
+                borderColor:
+                  isCameraActive
+                    ? "#6ee7b7"
+                    : "#fca5a5",
+                color: "#ffffff",
+              }}
             >
-              {cameraToggleButtonLabel(
-                isCameraActive,
-                cameraStatus
-              )}
+              {cameraStatus === "requesting"
+                ? "Camera: Opening..."
+                : isCameraActive
+                  ? "Camera: On"
+                  : "Camera: Off"}
             </button>
           </div>
 
@@ -1545,16 +1986,30 @@ const CameraVisionWidget: React.FC = () => {
               );
             }}
             className={[
-              "rounded-lg px-3 py-1.5 text-xs font-bold text-white transition",
+              "rounded-lg border px-3 py-1.5 text-xs font-bold text-white transition",
               cameraEmotionControlEnabled
-                ? "bg-fuchsia-600 hover:bg-fuchsia-700"
-                : "bg-slate-600 hover:bg-slate-700",
+                ? "bg-emerald-700 hover:bg-emerald-600"
+                : "bg-red-700 hover:bg-red-600",
               !isCameraActive
                 ? "cursor-not-allowed opacity-50"
                 : "",
             ].join(" ")}
+            style={{
+              backgroundColor:
+                cameraEmotionControlEnabled
+                  ? "#047857"
+                  : "#b91c1c",
+              borderColor:
+                cameraEmotionControlEnabled
+                  ? "#6ee7b7"
+                  : "#fca5a5",
+              color: "#ffffff",
+            }}
           >
-            Connect camera with emotion widget
+            Connect camera with emotion widget:{" "}
+            {cameraEmotionControlEnabled
+              ? "On"
+              : "Off"}
           </button>
         </div>
 
@@ -1565,7 +2020,7 @@ const CameraVisionWidget: React.FC = () => {
               autoPlay
               muted
               playsInline
-              className="aspect-video w-full bg-black object-cover"
+              className="aspect-video w-full scale-x-[-1] bg-black object-cover"
             />
           ) : (
             <div className="flex aspect-video w-full items-center justify-center px-3 text-center text-[11px] font-semibold text-white">
@@ -1580,15 +2035,27 @@ const CameraVisionWidget: React.FC = () => {
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={() => {
-            setShowVisionOptions(true);
-          }}
-          className="w-full rounded-lg bg-slate-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-slate-800"
-        >
-          See vision options
-        </button>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => {
+              handleOpenFaceSetup();
+            }}
+            className="w-full rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-700"
+          >
+            Recognize face
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setShowKnownPeople(true);
+            }}
+            className="w-full rounded-lg bg-purple-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-purple-600"
+          >
+            See known people list
+          </button>
+        </div>
 
         {false && showVisionOptions && (
           <>

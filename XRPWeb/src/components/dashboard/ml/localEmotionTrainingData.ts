@@ -7,19 +7,6 @@ export type TrainingExample = {
 };
 
 
-/*
- * Expanded dataset — Social Step 5.4.
- *
- * ~40-45 examples per class. Structured in blocks by
- * sentence pattern (intensity, events, negation, Spanish,
- * presentations) so it's easier to see coverage gaps and
- * add more later.
- *
- * IMPORTANT: this dataset assumes "really" and "very" have
- * been removed from STOP_WORDS in localEmotionClassifier.ts.
- * Otherwise those tokens get stripped before the model ever
- * sees them, and half these examples stop being useful.
- */
 export const EXPANDED_TRAINING_EXAMPLES:
   TrainingExample[] = [
 

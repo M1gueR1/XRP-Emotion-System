@@ -11,6 +11,8 @@ import {
   useVoiceCommands,
 } from "./useVoiceCommands";
 
+import Dialog from "../../dialogs/dialog";
+
 
 type VoiceCommandPanelProps = {
   onCommand?: (
@@ -870,6 +872,11 @@ function VoiceCommandPanel({
     setShowAdminOptions,
   ] = useState(false);
 
+  const [
+    showChatVoiceSettings,
+    setShowChatVoiceSettings,
+  ] = useState(false);
+
   const clearVoiceChatTimer = (): void => {
     if (
       voiceChatTimerRef.current !== null
@@ -1064,7 +1071,7 @@ function VoiceCommandPanel({
     }, [lastResult]);
 
   return (
-    <div className="w-full rounded-xl border border-slate-200 p-2 dark:border-slate-700">
+    <div className="w-full rounded-xl border border-purple-500/70 p-2">
       <div className="flex items-center gap-2">
         <button
           type="button"
@@ -1082,7 +1089,7 @@ function VoiceCommandPanel({
             "text-white shadow-sm transition",
             isListening
               ? "bg-red-600 hover:bg-red-700"
-              : "bg-blue-600 hover:bg-blue-700",
+              : "bg-green-600 hover:bg-green-700",
             !isSupported
               ? "cursor-not-allowed opacity-50"
               : "",
@@ -1118,24 +1125,362 @@ function VoiceCommandPanel({
         <button
           type="button"
           onClick={() => {
-            setShowAdminOptions(
-              (current) => !current
-            );
+            setShowAdminOptions(true);
           }}
           className={[
             "shrink-0 rounded-lg px-3 py-2 text-xs font-bold text-white shadow-sm transition",
-            showAdminOptions
-              ? "bg-slate-800 hover:bg-black"
-              : "bg-slate-600 hover:bg-slate-700",
+            "bg-slate-600 hover:bg-slate-700",
           ].join(" ")}
         >
-          {showAdminOptions
-            ? "Hide admin options"
-            : "See admin options"}
+          See admin options
         </button>
       </div>
 
-      {showAdminOptions && (
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            if (chatVoiceMode === "off") {
+              setChatVoiceMode("auto");
+            } else {
+              setChatVoiceMode("off");
+              clearVoiceChatDraft();
+            }
+          }}
+          className={[
+            "rounded-lg px-3 py-2 text-xs font-bold text-white transition",
+            chatVoiceMode === "off"
+              ? "bg-red-600 hover:bg-red-700"
+              : "bg-green-600 hover:bg-green-700",
+          ].join(" ")}
+        >
+          Voice ChatBot:{" "}
+          {chatVoiceMode === "off"
+            ? "Off"
+            : "On"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setShowChatVoiceSettings(true)
+          }
+          className="rounded-lg border border-purple-300 bg-black px-3 py-2 text-xs font-bold text-white transition hover:bg-purple-500 hover:text-black"
+        >
+          ChatBot voice conversation settings
+        </button>
+      </div>
+
+      <Dialog
+        isOpen={showAdminOptions}
+        toggleDialog={() =>
+          setShowAdminOptions(false)
+        }
+      >
+        <div className="flex max-h-[88vh] w-[min(94vw,860px)] flex-col gap-4 overflow-hidden bg-black p-5 text-white">
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="text-lg font-bold">
+              Admin options
+            </h2>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowAdminOptions(false)
+              }
+              className="rounded border border-white bg-black px-3 py-1 text-xs font-bold text-white transition hover:bg-white hover:text-black"
+            >
+              Close
+            </button>
+          </div>
+
+          <div className="min-h-0 overflow-auto">
+            <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-5">
+              <button
+                type="button"
+                onClick={() =>
+                  setTechnicalMode(
+                    (current) => !current
+                  )
+                }
+                className={[
+                  "rounded-lg px-2 py-1.5 font-bold text-white transition",
+                  technicalMode
+                    ? "bg-slate-700 hover:bg-slate-600"
+                    : "bg-indigo-600 hover:bg-indigo-500",
+                ].join(" ")}
+              >
+                {technicalMode
+                  ? "Technical mode"
+                  : "Demo mode"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setSemanticEnabled(
+                    (current) => !current
+                  )
+                }
+                className={[
+                  "rounded-lg px-2 py-1.5 font-bold text-white transition",
+                  semanticEnabled
+                    ? "bg-emerald-600 hover:bg-emerald-500"
+                    : "bg-slate-600 hover:bg-slate-500",
+                ].join(" ")}
+              >
+                Semantic ML:{" "}
+                {semanticEnabled
+                  ? "On"
+                  : "Off"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setAdvancedReasoningEnabled(
+                    (current) => !current
+                  )
+                }
+                className={[
+                  "rounded-lg px-2 py-1.5 font-bold text-white transition",
+                  advancedReasoningEnabled
+                    ? "bg-cyan-600 hover:bg-cyan-500"
+                    : "bg-slate-600 hover:bg-slate-500",
+                ].join(" ")}
+              >
+                Advanced:{" "}
+                {advancedReasoningEnabled
+                  ? "On"
+                  : "Off"}
+              </button>
+
+              <button
+                type="button"
+                disabled={
+                  !semanticEnabled ||
+                  semanticModelStatus === "loading"
+                }
+                onClick={() => {
+                  void preloadSemanticModel();
+                }}
+                className={[
+                  "rounded-lg px-2 py-1.5 font-bold text-white transition",
+                  semanticModelStatus === "ready"
+                    ? "bg-indigo-600 hover:bg-indigo-500"
+                    : "bg-purple-600 hover:bg-purple-500",
+                  !semanticEnabled ||
+                  semanticModelStatus === "loading"
+                    ? "cursor-not-allowed opacity-50"
+                    : "",
+                ].join(" ")}
+              >
+                {semanticModelStatus === "ready"
+                  ? "AI preloaded"
+                  : semanticModelStatus === "loading"
+                    ? "Loading AI..."
+                    : "Preload AI"}
+              </button>
+
+              <div className="rounded-lg bg-zinc-900 px-2 py-1.5 font-bold text-white">
+                {semanticStatusLabel(
+                  semanticModelStatus
+                )}
+              </div>
+            </div>
+
+            {isSemanticModelBusy && (
+              <div className="mt-3 rounded-lg bg-zinc-950 px-3 py-2 text-[11px] font-semibold text-white">
+                Semantic ML is loading or comparing meaning...
+              </div>
+            )}
+
+            <div className="mt-3 rounded-xl border border-zinc-700 bg-black p-3 text-xs text-white shadow-sm">
+              <div className="grid gap-2">
+                <div className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white">
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+                    Student said
+                  </div>
+                  <div className="mt-1 font-semibold text-white">
+                    {lastResult
+                      ? `"${lastResult.transcript || lastTranscript}"`
+                      : ""}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white">
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+                    Robot interpreted
+                  </div>
+                  <div className="mt-1 text-base font-bold text-white">
+                    {lastResult
+                      ? friendlyIntentLabel(
+                          lastResult
+                        )
+                      : ""}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white">
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+                    Why
+                  </div>
+                  <div className="mt-1 leading-5 text-white">
+                    {lastResult
+                      ? demoWhyText(
+                          lastResult
+                        )
+                      : ""}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {lastResult && technicalMode && (
+              <div className="mt-3 rounded-xl border border-zinc-700 bg-black p-2 text-[11px] text-white">
+                <div className="rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 leading-5 text-white">
+                  <span className="font-semibold">
+                    Reason:
+                  </span>{" "}
+                  {lastResult.confidenceLabel}
+                  {lastResult.decisionReason
+                    ? ` · decision ${lastResult.decisionReason}`
+                    : ""}
+                </div>
+              </div>
+            )}
+
+            {(errorMessage || commandError) && (
+              <div className="mt-3 rounded bg-red-950 px-2 py-1 text-xs font-semibold text-white">
+                {errorMessage || commandError}
+              </div>
+            )}
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        isOpen={showChatVoiceSettings}
+        toggleDialog={() =>
+          setShowChatVoiceSettings(false)
+        }
+      >
+        <div className="flex max-h-[88vh] w-[min(94vw,700px)] flex-col gap-4 overflow-hidden bg-black p-5 text-white">
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="text-lg font-bold">
+              ChatBot voice conversation settings
+            </h2>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowChatVoiceSettings(false)
+              }
+              className="rounded border border-white bg-black px-3 py-1 text-xs font-bold text-white transition hover:bg-white hover:text-black"
+            >
+              Close
+            </button>
+          </div>
+
+          <div className="grid gap-3 text-xs">
+            <label className="grid gap-1">
+              <span className="font-bold text-zinc-300">
+                Chat voice mode
+              </span>
+
+              <select
+                value={chatVoiceMode}
+                onChange={(event) => {
+                  setChatVoiceMode(
+                    event.target
+                      .value as ChatVoiceMode
+                  );
+
+                  clearVoiceChatDraft();
+                }}
+                className="rounded border border-zinc-700 bg-black px-2 py-2 text-white"
+              >
+                <option
+                  value="auto"
+                  className="bg-black text-white"
+                >
+                  Auto after pause
+                </option>
+                <option
+                  value="manual"
+                  className="bg-black text-white"
+                >
+                  Manual send
+                </option>
+                <option
+                  value="off"
+                  className="bg-black text-white"
+                >
+                  Off
+                </option>
+              </select>
+            </label>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={
+                  !voiceChatCleanDraft.trim() ||
+                  chatVoiceMode === "off"
+                }
+                onClick={() => {
+                  flushVoiceChatDraft(
+                    lastResult ?? undefined
+                  );
+                }}
+                className={[
+                  "rounded-lg px-2 py-2 font-bold text-white transition",
+                  voiceChatCleanDraft.trim() &&
+                  chatVoiceMode !== "off"
+                    ? "bg-pink-600 hover:bg-pink-500"
+                    : "cursor-not-allowed bg-slate-700 opacity-50",
+                ].join(" ")}
+              >
+                Send voice to chat
+              </button>
+
+              <button
+                type="button"
+                disabled={
+                  !voiceChatDraft.trim() &&
+                  !voiceChatCleanDraft.trim()
+                }
+                onClick={clearVoiceChatDraft}
+                className={[
+                  "rounded-lg px-2 py-2 font-bold text-white transition",
+                  voiceChatDraft.trim() ||
+                  voiceChatCleanDraft.trim()
+                    ? "bg-slate-600 hover:bg-slate-500"
+                    : "cursor-not-allowed bg-slate-700 opacity-50",
+                ].join(" ")}
+              >
+                Clear draft
+              </button>
+            </div>
+
+            <div className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 leading-5">
+              <span className="font-bold text-zinc-300">
+                Raw voice draft:
+              </span>{" "}
+              {voiceChatDraft || ""}
+            </div>
+
+            <div className="rounded-lg border border-emerald-700 bg-zinc-950 px-3 py-2 leading-5">
+              <span className="font-bold text-emerald-300">
+                Cleaned voice draft:
+              </span>{" "}
+              {voiceChatCleanDraft || ""}
+            </div>
+          </div>
+        </div>
+      </Dialog>
+
+      {false && showAdminOptions && (
         <div className="mt-2 rounded-xl border border-slate-700 bg-black p-2 text-white shadow-sm">
           <div className="grid grid-cols-5 gap-2 text-[11px]">
             <button
@@ -1337,13 +1682,13 @@ function VoiceCommandPanel({
         </div>
       )}
 
-      {showAdminOptions && isSemanticModelBusy && (
+      {false && showAdminOptions && isSemanticModelBusy && (
         <div className="mt-2 rounded-lg bg-black px-2 py-1.5 text-[11px] font-semibold text-white">
           Semantic ML is loading or comparing meaning...
         </div>
       )}
 
-      {showAdminOptions && lastResult && !technicalMode && (
+      {lastResult && false && showAdminOptions && !technicalMode && (
         <div className="mt-2 rounded-xl border border-zinc-700 bg-black p-3 text-xs text-white shadow-sm">
           <div className="grid gap-2">
             <div className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white">
@@ -1351,7 +1696,7 @@ function VoiceCommandPanel({
                 Student said
               </div>
               <div className="mt-1 font-semibold text-white">
-                "{lastResult.transcript || lastTranscript}"
+                "{lastResult?.transcript || lastTranscript}"
               </div>
             </div>
 
@@ -1390,7 +1735,7 @@ function VoiceCommandPanel({
                   Source:
                 </span>{" "}
                 {sourceLabel(
-                  lastResult.source
+                  lastResult?.source ?? "unknown"
                 )}
               </div>
 
@@ -1399,7 +1744,7 @@ function VoiceCommandPanel({
                   Robot action:
                 </span>{" "}
                 {actionLabel(
-                  lastResult.action
+                  lastResult?.action ?? "unknown"
                 )}
               </div>
             </div>
@@ -1407,7 +1752,7 @@ function VoiceCommandPanel({
         </div>
       )}
 
-      {showAdminOptions && lastResult && technicalMode && (
+      {lastResult && false && showAdminOptions && technicalMode && (
         <div className="mt-2 rounded-xl border border-zinc-700 bg-black p-2 text-[11px] text-white">
           <div className="grid grid-cols-4 gap-2">
             <div className="rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1 text-white">
@@ -1416,7 +1761,7 @@ function VoiceCommandPanel({
               </div>
               <div className="font-bold">
                 {sourceLabel(
-                  lastResult.source
+                  lastResult?.source ?? "unknown"
                 )}
               </div>
             </div>
@@ -1426,7 +1771,7 @@ function VoiceCommandPanel({
                 Detected intent
               </div>
               <div className="font-bold">
-                {lastResult.intentLabel}
+                {lastResult?.intentLabel}
               </div>
             </div>
 
@@ -1437,7 +1782,7 @@ function VoiceCommandPanel({
               <div className="font-bold">
                 {confidencePercent}% ·{" "}
                 {confidenceLabel(
-                  lastResult.confidenceScore
+                  lastResult?.confidenceScore ?? 0
                 )}
               </div>
             </div>
@@ -1447,7 +1792,7 @@ function VoiceCommandPanel({
                 Category
               </div>
               <div className="font-bold capitalize">
-                {lastResult.intentCategory}
+                {lastResult?.intentCategory}
               </div>
             </div>
           </div>
@@ -1456,77 +1801,77 @@ function VoiceCommandPanel({
             <span className="font-semibold">
               Reason:
             </span>{" "}
-            {lastResult.confidenceLabel}
+            {lastResult?.confidenceLabel}
 
-            {lastResult.decisionReason && (
+            {lastResult?.decisionReason && (
               <>
                 {" "}· decision{" "}
                 <span className="font-semibold">
-                  {lastResult.decisionReason}
+                  {lastResult?.decisionReason}
                 </span>
               </>
             )}
 
-            {lastResult.repeatCount > 1 && (
+            {(lastResult?.repeatCount ?? 0) > 1 && (
               <>
                 {" "}· repeat x
-                {lastResult.repeatCount}
+                {lastResult?.repeatCount}
               </>
             )}
 
-            {lastResult.advancedMatchedPrototype && (
+            {lastResult?.advancedMatchedPrototype && (
               <>
                 {" "}· advanced prototype{" "}
                 <span className="font-semibold">
-                  "{lastResult.advancedMatchedPrototype}"
+                  "{lastResult?.advancedMatchedPrototype}"
                 </span>
               </>
             )}
 
-            {lastResult.contextReason && (
+            {lastResult?.contextReason && (
               <>
                 {" "}· context{" "}
                 <span className="font-semibold">
-                  {lastResult.contextReason}
+                  {lastResult?.contextReason}
                 </span>
               </>
             )}
 
-            {lastResult.semanticMatchText && (
+            {lastResult?.semanticMatchText && (
               <>
                 {" "}· closest example{" "}
                 <span className="font-semibold">
-                  "{lastResult.semanticMatchText}"
+                  "{lastResult?.semanticMatchText}"
                 </span>
               </>
             )}
 
-            {typeof lastResult.semanticSimilarity === "number" && (
+            {typeof lastResult?.semanticSimilarity === "number" && (
               <>
                 {" "}· similarity{" "}
-                {lastResult.semanticSimilarity.toFixed(2)}
+                {lastResult?.semanticSimilarity?.toFixed(2)}
               </>
             )}
 
-            {lastResult.matchedRuleId && (
+            {lastResult?.matchedRuleId && (
               <>
                 {" "}· rule{" "}
                 <span className="font-mono">
-                  {lastResult.matchedRuleId}
+                  {lastResult?.matchedRuleId}
                 </span>
               </>
             )}
           </div>
 
-          {lastResult.decisionCandidates &&
-            lastResult.decisionCandidates.length > 0 && (
+          {(lastResult?.decisionCandidates?.length ?? 0) >
+            0 && (
               <div className="mt-2 rounded-lg border border-zinc-700 bg-zinc-950 p-2 text-white">
                 <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-zinc-300">
                   Decision candidates
                 </div>
 
                 <div className="grid gap-1">
-                  {lastResult.decisionCandidates.map(
+                  {lastResult?.decisionCandidates?.map(
                     (candidate, index) => (
                       <div
                         key={`${candidate.source}-${candidate.matchedRuleId ?? index}`}
@@ -1566,7 +1911,7 @@ function VoiceCommandPanel({
         </div>
       )}
 
-      {showAdminOptions && (errorMessage || commandError) && (
+      {false && showAdminOptions && (errorMessage || commandError) && (
         <div className="mt-2 rounded bg-red-950 px-2 py-1 text-xs font-semibold text-white">
           {errorMessage || commandError}
         </div>

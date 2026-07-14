@@ -152,9 +152,6 @@ const inputClass =
 const buttonClass =
   "rounded border border-white bg-black px-3 py-1 font-bold text-white transition hover:bg-white hover:text-black";
 
-const panelClass =
-  "rounded-xl border border-white bg-black p-3 text-white";
-
 
 const AI_RESPONSE_MODE_STORAGE_KEY =
   "xrp-emotion-system:ai-response-mode:v1";
@@ -2206,7 +2203,7 @@ function TeacherModeDialog({
           <button
             type="button"
             onClick={onClose}
-            className="rounded border border-white bg-black px-3 py-1 text-xs font-bold text-white transition hover:bg-white hover:text-black"
+            className="rounded border border-purple-300 bg-purple-700 px-3 py-1 text-xs font-bold text-white transition hover:bg-purple-600"
           >
             Close
           </button>
@@ -2214,8 +2211,8 @@ function TeacherModeDialog({
 
         <div className="min-h-0 overflow-auto pr-1">
           {!teacherUnlocked ? (
-            <div className="mx-auto grid max-w-md gap-3 rounded-xl border border-white bg-black p-4">
-              <div className="rounded-lg border border-white bg-black p-3 text-xs leading-5 text-white">
+            <div className="mx-auto grid max-w-md gap-3 rounded-xl border border-purple-400 bg-purple-950/20 p-4 shadow-[0_0_24px_rgba(168,85,247,0.16)]">
+              <div className="rounded-lg border border-purple-300 bg-purple-950/30 p-3 text-xs leading-5 text-purple-50">
                 Teacher Mode protects safety rules, chat keywords, Gemini settings, robot name, and profile deletion.
               </div>
 
@@ -2239,26 +2236,26 @@ function TeacherModeDialog({
               <button
                 type="button"
                 onClick={onUnlock}
-                className={`${buttonClass} w-full`}
+                className="w-full rounded border border-purple-300 bg-purple-700 px-3 py-1 font-bold text-white transition hover:bg-purple-600"
               >
                 Unlock Teacher Mode
               </button>
 
               {teacherModeStatus && (
-                <div className="rounded-lg border border-white bg-black p-2 text-[11px] leading-4 text-white">
+                <div className="rounded-lg border border-amber-300 bg-amber-950/20 p-2 text-[11px] leading-4 text-amber-50">
                   {teacherModeStatus}
                 </div>
               )}
             </div>
           ) : (
             <div className="grid gap-4">
-              <div className="grid gap-3 rounded-xl border border-emerald-400 bg-black p-3 text-emerald-100">
+              <div className="grid gap-3 rounded-xl border border-emerald-400 bg-emerald-950/15 p-3 text-emerald-100 shadow-[0_0_22px_rgba(16,185,129,0.12)]">
                 <div className="text-xs leading-5">
                   Teacher Mode unlocked. Safety still runs before memory, local ML, Gemini, and custom chat keywords.
                 </div>
 
                 <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
-                  <div className="rounded-lg border border-white bg-black p-2 text-xs text-white">
+                  <div className="rounded-lg border border-sky-400 bg-sky-950/20 p-2 text-xs text-sky-50">
                     <span className="font-bold">
                       Actual passcode:
                     </span>{" "}
@@ -2272,7 +2269,7 @@ function TeacherModeDialog({
                         event.target.value
                       )
                     }
-                    className={`${inputClass} w-full`}
+                    className="min-w-0 rounded border border-sky-400 bg-sky-950/20 px-2 py-1 text-xs text-sky-50 placeholder:text-sky-200/60 outline-none focus:ring-2 focus:ring-sky-300 w-full"
                     placeholder="New passcode"
                     type="password"
                   />
@@ -2280,19 +2277,19 @@ function TeacherModeDialog({
                   <button
                     type="button"
                     onClick={onChangeTeacherPasscode}
-                    className={buttonClass}
+                    className="rounded border border-sky-300 bg-sky-700 px-3 py-1 font-bold text-white transition hover:bg-sky-600"
                   >
                     Save
                   </button>
                 </div>
 
-                <div className="grid gap-3 rounded-lg border border-white bg-black p-3 text-white">
-                  <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+                <div className="grid gap-3 rounded-lg border border-purple-400 bg-purple-950/20 p-3 text-white">
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-purple-200">
                     AI response settings
                   </div>
 
                   <div className="grid gap-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+                    <label className="text-[10px] font-bold uppercase tracking-wide text-purple-200">
                       AI response mode
                     </label>
 
@@ -2304,7 +2301,7 @@ function TeacherModeDialog({
                             .value as AiResponseMode
                         )
                       }
-                      className={`${inputClass} w-full`}
+                      className="min-w-0 rounded border border-purple-400 bg-purple-950/20 px-2 py-1 text-xs text-purple-50 outline-none focus:ring-2 focus:ring-purple-300 w-full"
                     >
                       <option
                         value="local_only"
@@ -2326,7 +2323,7 @@ function TeacherModeDialog({
                       </option>
                     </select>
 
-                    <div className="rounded-lg border border-zinc-700 bg-black p-2 text-[10px] leading-4 text-zinc-300">
+                    <div className="rounded-lg border border-purple-300 bg-purple-950/20 p-2 text-[10px] leading-4 text-purple-100">
                       Current mode: {aiResponseModeLabel(aiResponseMode)}.
                       Local only never calls Gemini. Smart fallback calls Gemini when local confidence is low.
                       Rescue mode tries local first and only calls Gemini if the local reply would be too weak.
@@ -2341,7 +2338,7 @@ function TeacherModeDialog({
                           event.target.value
                         )
                       }
-                      className={`${inputClass} w-full`}
+                      className="min-w-0 rounded border border-purple-400 bg-purple-950/20 px-2 py-1 text-xs text-purple-50 placeholder:text-purple-200/60 outline-none focus:ring-2 focus:ring-purple-300 w-full"
                       placeholder="Gemini model, e.g. gemini-2.5-flash"
                     />
 
@@ -2352,19 +2349,19 @@ function TeacherModeDialog({
                           event.target.value
                         )
                       }
-                      className={`${inputClass} w-full`}
+                      className="min-w-0 rounded border border-purple-400 bg-purple-950/20 px-2 py-1 text-xs text-purple-50 placeholder:text-purple-200/60 outline-none focus:ring-2 focus:ring-purple-300 w-full"
                       placeholder="Gemini API key"
                       type="password"
                     />
                   </div>
 
-                  <div className="rounded-lg border border-white bg-black p-2 text-[10px] leading-4 text-white">
+                  <div className="rounded-lg border border-sky-400 bg-sky-950/20 p-2 text-[10px] leading-4 text-sky-50">
                     Demo mode: the API key is stored only in this browser localStorage.
                     For production, use a backend proxy instead of exposing keys in the frontend.
                   </div>
 
                   {geminiStatus && (
-                    <div className="rounded-lg border border-white bg-black p-2 text-[10px] leading-4 text-white">
+                    <div className="rounded-lg border border-amber-300 bg-amber-950/20 p-2 text-[10px] leading-4 text-amber-50">
                       {geminiStatus}
                     </div>
                   )}
@@ -2373,22 +2370,35 @@ function TeacherModeDialog({
                 <button
                   type="button"
                   onClick={onLock}
-                  className="w-fit rounded border border-yellow-400 bg-black px-3 py-1 text-xs font-bold text-yellow-200 transition hover:bg-yellow-400 hover:text-black"
+                  className="w-fit rounded border border-yellow-300 bg-yellow-700 px-3 py-1 text-xs font-bold text-white transition hover:bg-yellow-600"
                 >
                   Lock Teacher Mode
                 </button>
               </div>
 
-              <div className="grid gap-3 rounded-xl border border-white bg-black p-3">
+              <div
+                className="grid gap-3 rounded-xl border p-3"
+                style={{
+                  backgroundColor: "rgba(67, 20, 7, 0.24)",
+                  borderColor: "rgba(251, 146, 60, 0.72)",
+                  boxShadow: "0 0 18px rgba(251, 146, 60, 0.08)",
+                }}
+              >
                 <div className="grid gap-2 md:grid-cols-2">
-                  <div className="rounded-lg border border-zinc-700 bg-zinc-950 p-3">
+                  <div
+                    className="rounded-lg border p-3"
+                    style={{
+                      backgroundColor: "rgba(124, 45, 18, 0.22)",
+                      borderColor: "rgba(253, 186, 116, 0.62)",
+                    }}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-xs font-bold text-white">
+                        <div className="text-xs font-bold text-amber-100">
                           Exact identical blocked words identified
                         </div>
 
-                        <div className="mt-1 text-[11px] leading-4 text-zinc-300">
+                        <div className="mt-1 text-[11px] leading-4 text-amber-100/80">
                           Blocks configured exact terms and enabled safety categories before the chat response pipeline continues.
                         </div>
                       </div>
@@ -2404,9 +2414,20 @@ function TeacherModeDialog({
                         }
                         className={`rounded border px-3 py-1 text-xs font-bold transition ${
                           safetyPolicy.enabled
-                            ? "border-emerald-300 bg-emerald-300 text-black"
-                            : "border-zinc-500 bg-black text-zinc-200"
+                            ? "border-emerald-300 bg-emerald-700 text-white"
+                            : "border-rose-300 bg-rose-800 text-white"
                         }`}
+                        style={{
+                          backgroundColor:
+                            safetyPolicy.enabled
+                              ? "rgba(4, 120, 87, 0.82)"
+                              : "rgba(159, 18, 57, 0.72)",
+                          borderColor:
+                            safetyPolicy.enabled
+                              ? "rgba(110, 231, 183, 0.8)"
+                              : "rgba(253, 164, 175, 0.72)",
+                          color: "#ffffff",
+                        }}
                       >
                         {safetyPolicy.enabled
                           ? "On"
@@ -2415,14 +2436,20 @@ function TeacherModeDialog({
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-zinc-700 bg-zinc-950 p-3">
+                  <div
+                    className="rounded-lg border p-3"
+                    style={{
+                      backgroundColor: "rgba(124, 45, 18, 0.22)",
+                      borderColor: "rgba(253, 186, 116, 0.62)",
+                    }}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-xs font-bold text-white">
+                        <div className="text-xs font-bold text-amber-100">
                           Synonyms of identical blocked words identified
                         </div>
 
-                        <div className="mt-1 text-[11px] leading-4 text-zinc-300">
+                        <div className="mt-1 text-[11px] leading-4 text-amber-100/80">
                           Uses fuzzy, semantic, and local classifier checks to catch unsafe paraphrases or related wording.
                         </div>
                       </div>
@@ -2438,9 +2465,20 @@ function TeacherModeDialog({
                         }
                         className={`rounded border px-3 py-1 text-xs font-bold transition ${
                           safetyPolicy.semanticClassifierEnabled
-                            ? "border-emerald-300 bg-emerald-300 text-black"
-                            : "border-zinc-500 bg-black text-zinc-200"
+                            ? "border-emerald-300 bg-emerald-700 text-white"
+                            : "border-rose-300 bg-rose-800 text-white"
                         }`}
+                        style={{
+                          backgroundColor:
+                            safetyPolicy.semanticClassifierEnabled
+                              ? "rgba(4, 120, 87, 0.82)"
+                              : "rgba(159, 18, 57, 0.72)",
+                          borderColor:
+                            safetyPolicy.semanticClassifierEnabled
+                              ? "rgba(110, 231, 183, 0.8)"
+                              : "rgba(253, 164, 175, 0.72)",
+                          color: "#ffffff",
+                        }}
                       >
                         {safetyPolicy.semanticClassifierEnabled
                           ? "On"
@@ -2451,7 +2489,7 @@ function TeacherModeDialog({
                 </div>
 
                 <div>
-                  <div className="mb-2 text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+                  <div className="mb-2 text-[10px] font-bold uppercase tracking-wide text-amber-200">
                     Blocked keyword categories
                   </div>
 
@@ -2480,9 +2518,20 @@ function TeacherModeDialog({
                             }
                             className={`rounded-lg border p-2 text-left transition ${
                               isEnabled
-                                ? "border-white bg-white text-black"
-                                : "border-zinc-700 bg-black text-white"
+                                ? "border-amber-300 bg-amber-700 text-white"
+                                : "border-rose-400/70 bg-rose-950/20 text-rose-50"
                             }`}
+                            style={{
+                              backgroundColor:
+                                isEnabled
+                                  ? "rgba(154, 52, 18, 0.58)"
+                                  : "rgba(30, 41, 59, 0.38)",
+                              borderColor:
+                                isEnabled
+                                  ? "rgba(253, 186, 116, 0.72)"
+                                  : "rgba(148, 163, 184, 0.55)",
+                              color: "#ffffff",
+                            }}
                           >
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-xs font-bold">
@@ -2498,8 +2547,8 @@ function TeacherModeDialog({
 
                             <div className={`mt-1 text-[10px] leading-4 ${
                               isEnabled
-                                ? "text-zinc-700"
-                                : "text-zinc-400"
+                                ? "text-amber-50"
+                                : "text-rose-100/70"
                             }`}>
                               {option.description}
                             </div>
@@ -2511,8 +2560,15 @@ function TeacherModeDialog({
                 </div>
               </div>
 
-              <div className="grid gap-2 rounded-xl border border-white bg-black p-3">
-                <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+              <div
+                className="grid gap-2 rounded-xl border p-3"
+                style={{
+                  backgroundColor: "rgba(88, 28, 135, 0.2)",
+                  borderColor: "rgba(192, 132, 252, 0.68)",
+                  boxShadow: "0 0 18px rgba(168, 85, 247, 0.08)",
+                }}
+              >
+                <label className="text-[10px] font-bold uppercase tracking-wide text-purple-200">
                   Custom blocked item
                 </label>
 
@@ -2524,14 +2580,24 @@ function TeacherModeDialog({
                         event.target.value
                       )
                     }
-                    className={`${inputClass} flex-1`}
+                    className="min-w-0 flex-1 rounded border border-purple-400 bg-purple-950/20 px-2 py-1 text-xs text-purple-50 placeholder:text-purple-200/60 outline-none focus:ring-2 focus:ring-purple-300"
+                    style={{
+                      backgroundColor: "rgba(59, 7, 100, 0.34)",
+                      borderColor: "rgba(192, 132, 252, 0.68)",
+                      color: "#faf5ff",
+                    }}
                     placeholder="Example: scary topic"
                   />
 
                   <button
                     type="button"
                     onClick={onAddCustomSafetyTerm}
-                    className={buttonClass}
+                    className="rounded border border-purple-300 bg-purple-700 px-3 py-1 font-bold text-white transition hover:bg-purple-600"
+                    style={{
+                      backgroundColor: "rgba(126, 34, 206, 0.78)",
+                      borderColor: "rgba(216, 180, 254, 0.78)",
+                      color: "#ffffff",
+                    }}
                   >
                     Add
                   </button>
@@ -2547,7 +2613,7 @@ function TeacherModeDialog({
                       (term) => (
                         <span
                           key={term}
-                          className="inline-flex items-center gap-2 rounded-full border border-zinc-600 bg-zinc-950 px-3 py-1 text-[11px] text-white"
+                          className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-950/40 px-3 py-1 text-[11px] text-rose-50"
                         >
                           {term}
 
@@ -2574,8 +2640,15 @@ function TeacherModeDialog({
                 </div>
               </div>
 
-              <div className="grid gap-2 rounded-xl border border-white bg-black p-3">
-                <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+              <div
+                className="grid gap-2 rounded-xl border p-3"
+                style={{
+                  backgroundColor: "rgba(67, 20, 7, 0.22)",
+                  borderColor: "rgba(251, 146, 60, 0.68)",
+                  boxShadow: "0 0 18px rgba(251, 146, 60, 0.08)",
+                }}
+              >
+                <label className="text-[10px] font-bold uppercase tracking-wide text-amber-200">
                   Safe reply
                 </label>
 
@@ -2588,12 +2661,24 @@ function TeacherModeDialog({
                         event.target.value,
                     })
                   }
-                  className={`${inputClass} min-h-[78px] w-full resize-none`}
+                  className="min-w-0 min-h-[78px] w-full resize-none rounded border border-amber-400 bg-amber-950/20 px-2 py-1 text-xs text-amber-50 placeholder:text-amber-200/60 outline-none focus:ring-2 focus:ring-amber-300"
+                  style={{
+                    backgroundColor: "rgba(67, 20, 7, 0.28)",
+                    borderColor: "rgba(253, 186, 116, 0.68)",
+                    color: "#fffbeb",
+                  }}
                 />
               </div>
 
-              <div className="grid gap-2 rounded-xl border border-white bg-black p-3">
-                <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+              <div
+                className="grid gap-2 rounded-xl border p-3"
+                style={{
+                  backgroundColor: "rgba(88, 28, 135, 0.2)",
+                  borderColor: "rgba(192, 132, 252, 0.68)",
+                  boxShadow: "0 0 18px rgba(168, 85, 247, 0.08)",
+                }}
+              >
+                <label className="text-[10px] font-bold uppercase tracking-wide text-purple-200">
                   Import / export safety rules JSON
                 </label>
 
@@ -2609,7 +2694,12 @@ function TeacherModeDialog({
                   <button
                     type="button"
                     onClick={onExportRules}
-                    className={buttonClass}
+                    className="rounded border border-cyan-300 bg-cyan-700 px-3 py-1 font-bold text-white transition hover:bg-cyan-600"
+                    style={{
+                      backgroundColor: "rgba(126, 34, 206, 0.78)",
+                      borderColor: "rgba(216, 180, 254, 0.78)",
+                      color: "#ffffff",
+                    }}
                   >
                     Export rules JSON
                   </button>
@@ -2619,22 +2709,38 @@ function TeacherModeDialog({
                     onClick={() =>
                       importInputRef.current?.click()
                     }
-                    className={buttonClass}
+                    className="rounded border border-cyan-300 bg-cyan-700 px-3 py-1 font-bold text-white transition hover:bg-cyan-600"
+                    style={{
+                      backgroundColor: "rgba(126, 34, 206, 0.78)",
+                      borderColor: "rgba(216, 180, 254, 0.78)",
+                      color: "#ffffff",
+                    }}
                   >
                     Import rules JSON
                   </button>
                 </div>
 
-                <div className="text-[10px] leading-4 text-zinc-400">
+                <div className="text-[10px] leading-4 text-purple-100/70">
                   The JSON includes passcode, blocking modes, keyword categories, custom blocked items, and the safe reply.
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div
+                className="grid grid-cols-2 gap-2 rounded-xl border p-2"
+                style={{
+                  backgroundColor: "rgba(15, 23, 42, 0.7)",
+                  borderColor: "#94a3b8",
+                }}
+              >
                 <button
                   type="button"
                   onClick={onResetPolicy}
-                  className="rounded border border-yellow-400 bg-black px-3 py-1 text-xs font-bold text-yellow-200 transition hover:bg-yellow-400 hover:text-black"
+                  className="rounded border border-yellow-300 bg-yellow-700 px-3 py-1 text-xs font-bold text-white transition hover:bg-yellow-600"
+                  style={{
+                    backgroundColor: "#a16207",
+                    borderColor: "#fde047",
+                    color: "#ffffff",
+                  }}
                 >
                   Reset safety policy
                 </button>
@@ -2642,14 +2748,19 @@ function TeacherModeDialog({
                 <button
                   type="button"
                   onClick={onClearStatus}
-                  className={buttonClass}
+                  className="rounded border border-sky-300 bg-sky-700 px-3 py-1 text-xs font-bold text-white transition hover:bg-sky-600"
+                  style={{
+                    backgroundColor: "#0369a1",
+                    borderColor: "#7dd3fc",
+                    color: "#ffffff",
+                  }}
                 >
                   Clear status
                 </button>
               </div>
 
               {teacherModeStatus && (
-                <div className="rounded-lg border border-white bg-black p-2 text-[11px] leading-4 text-white">
+                <div className="rounded-lg border border-sky-400 bg-sky-950/20 p-2 text-[11px] leading-4 text-sky-50">
                   {teacherModeStatus}
                 </div>
               )}
@@ -2695,6 +2806,11 @@ const RobotChatWidget:
       createdAt: nowIso(),
     },
   ]);
+
+  const [
+    isRobotTyping,
+    setIsRobotTyping,
+  ] = useState(false);
 
   const [
     showMemory,
@@ -3172,10 +3288,6 @@ const RobotChatWidget:
       return;
     }
 
-    /*
-     * Typed and voice-to-chat messages both count as active
-     * conversation and suppress camera greetings for 30 seconds.
-     */
     lastUserChatActivityAtRef.current =
       Date.now();
 
@@ -3230,6 +3342,22 @@ const RobotChatWidget:
 
       return;
     }
+
+    const userMessage: ChatMessage = {
+      id: safeRandomId(),
+      role: "user",
+      text: rawInput,
+      createdAt: nowIso(),
+    };
+
+    const messagesWithUser: ChatMessage[] = [
+      ...messages,
+      userMessage,
+    ];
+
+    setMessages(messagesWithUser);
+    setInput("");
+    setIsRobotTyping(true);
 
     const profileBefore =
       getActiveUserProfile();
@@ -3329,7 +3457,7 @@ const RobotChatWidget:
             activeProfile:
               profileBefore,
             recentMessages:
-              messages.map((message) => ({
+              messagesWithUser.map((message) => ({
                 role:
                   message.role,
                 text:
@@ -3593,7 +3721,7 @@ const RobotChatWidget:
               activeProfile:
                 profileAfter ?? profileBefore,
               recentMessages:
-                messages.map((message) => ({
+                messagesWithUser.map((message) => ({
                   role:
                     message.role,
                   text:
@@ -3648,13 +3776,7 @@ const RobotChatWidget:
 
     const nextMessages:
       ChatMessage[] = [
-        ...messages,
-        {
-          id: safeRandomId(),
-          role: "user",
-          text: rawInput,
-          createdAt: nowIso(),
-        },
+        ...messagesWithUser,
         {
           id: safeRandomId(),
           role: "robot",
@@ -3669,7 +3791,7 @@ const RobotChatWidget:
       nextMessages
     );
 
-    setInput("");
+    setIsRobotTyping(false);
 
     emitDashboardEmotionPreview(
       decision,
@@ -4091,7 +4213,7 @@ const RobotChatWidget:
       </div>
 
       <div className="flex h-full w-full flex-col gap-2 rounded-xl bg-black p-3 pt-1 text-xs text-white">
-        <div className="rounded-xl border border-white bg-black px-3 py-1.5 text-white">
+        <div className="hidden">
           <div className="min-w-0">
             <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-300">
               Robot name
@@ -4103,13 +4225,18 @@ const RobotChatWidget:
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 rounded-xl border border-blue-500/70 p-2">
           <button
             type="button"
             onClick={() =>
               setShowRobotNameDialog(true)
             }
-            className="shrink-0 rounded border border-white bg-black px-3 py-1 text-[10px] font-bold text-white transition hover:bg-white hover:text-black"
+            className="shrink-0 rounded border border-sky-300 bg-sky-700 px-3 py-1 text-[10px] font-bold text-white transition hover:bg-sky-600"
+            style={{
+              backgroundColor: "#0369a1",
+              borderColor: "#7dd3fc",
+              color: "#ffffff",
+            }}
           >
             Set robot name
           </button>
@@ -4122,7 +4249,12 @@ const RobotChatWidget:
               );
               setShowMemory(true);
             }}
-            className="shrink-0 rounded border border-white bg-black px-3 py-1 text-[10px] font-bold text-white transition hover:bg-white hover:text-black"
+            className="shrink-0 rounded border border-emerald-300 bg-emerald-700 px-3 py-1 text-[10px] font-bold text-white transition hover:bg-emerald-600"
+            style={{
+              backgroundColor: "#047857",
+              borderColor: "#6ee7b7",
+              color: "#ffffff",
+            }}
           >
             See memory
           </button>
@@ -4132,7 +4264,12 @@ const RobotChatWidget:
             onClick={() =>
               setShowTeacherMode(true)
             }
-            className="shrink-0 rounded border border-white bg-black px-3 py-1 text-[10px] font-bold text-white transition hover:bg-white hover:text-black"
+            className="shrink-0 rounded border border-purple-300 bg-purple-700 px-3 py-1 text-[10px] font-bold text-white transition hover:bg-purple-600"
+            style={{
+              backgroundColor: "#7e22ce",
+              borderColor: "#d8b4fe",
+              color: "#ffffff",
+            }}
           >
             Teacher Mode
           </button>
@@ -4142,13 +4279,18 @@ const RobotChatWidget:
             onClick={() =>
               setShowChatKeywords(true)
             }
-            className="shrink-0 rounded border border-white bg-black px-3 py-1 text-[10px] font-bold text-white transition hover:bg-white hover:text-black"
+            className="shrink-0 rounded border border-amber-300 bg-amber-700 px-3 py-1 text-[10px] font-bold text-white transition hover:bg-amber-600"
+            style={{
+              backgroundColor: "#b45309",
+              borderColor: "#fcd34d",
+              color: "#ffffff",
+            }}
           >
             Chat keywords
           </button>
         </div>
 
-        <div className={panelClass}>
+        <div className="rounded-xl border border-emerald-500/70 bg-black p-3 text-white">
           <div className="flex items-center justify-between gap-2">
             <div className="font-bold text-white">
               Active profile
@@ -4361,7 +4503,7 @@ const RobotChatWidget:
           )}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-white bg-black p-3">
+        <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-cyan-500/70 bg-black p-3">
           <div className="flex flex-col gap-2">
             {messages.map((message) => (
               <div
@@ -4369,9 +4511,22 @@ const RobotChatWidget:
                 className={[
                   "max-w-[90%] rounded-xl border p-2 leading-5",
                   message.role === "user"
-                    ? "self-end border-white bg-white text-black"
-                    : "self-start border-white bg-black text-white",
+                    ? "self-end border-sky-300 bg-sky-700 text-white"
+                    : "self-start border-emerald-300 bg-emerald-950 text-white",
                 ].join(" ")}
+                style={
+                  message.role === "user"
+                    ? {
+                        backgroundColor: "#1d4ed8",
+                        borderColor: "#93c5fd",
+                        color: "#ffffff",
+                      }
+                    : {
+                        backgroundColor: "#064e3b",
+                        borderColor: "#6ee7b7",
+                        color: "#ffffff",
+                      }
+                }
               >
                 <div className="text-[10px] font-bold uppercase tracking-wide opacity-70">
                   {message.role === "user"
@@ -4393,11 +4548,32 @@ const RobotChatWidget:
               </div>
             ))}
 
+            {isRobotTyping && (
+              <div
+                className="max-w-[90%] self-start rounded-xl border border-emerald-300 bg-emerald-950 p-2 leading-5 text-white"
+                style={{
+                  backgroundColor: "#064e3b",
+                  borderColor: "#6ee7b7",
+                  color: "#ffffff",
+                }}
+              >
+                <div className="text-[10px] font-bold uppercase tracking-wide opacity-70">
+                  {robotName}
+                </div>
+
+                <div className="mt-1 flex items-center gap-1">
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-white [animation-delay:-0.2s]" />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-white [animation-delay:-0.1s]" />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-white" />
+                </div>
+              </div>
+            )}
+
             <div ref={scrollRef} />
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 rounded-xl border border-cyan-500/70 p-2">
           <textarea
             value={input}
             onChange={(event) =>

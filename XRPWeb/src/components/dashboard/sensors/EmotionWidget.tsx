@@ -8,7 +8,10 @@ import React, {
 import EmotionSoundManager from
   "../emotions/EmotionSoundManager";
 
-import { FaRobot } from "react-icons/fa";
+import {
+  FaRobot,
+  FaTrash,
+} from "react-icons/fa";
 
 import useSensorData from "../hooks/useSensorData";
 
@@ -17,6 +20,8 @@ import useCustomEmotionCatalog from
 
 import ManageEmotionsDialog from
   "../emotions/ManageEmotionsDialog";
+
+import Dialog from "../../dialogs/dialog";
 
 import VoiceCommandPanel from
   "../voice/VoiceCommandPanel";
@@ -40,6 +45,10 @@ import type {
 } from "../utils/sensorParsers";
 
 import SensorCard from "./SensorCard";
+
+import {
+  useGridStackWidget,
+} from "../hooks/useGridStackWidget";
 
 import {
   getEmotionById,
@@ -129,6 +138,9 @@ const buildPingPongSequence = (
 
 
 const EmotionWidget: React.FC = () => {
+  const { handleDelete } =
+    useGridStackWidget();
+
   const {
     getSensorData,
     requestSensors,
@@ -162,6 +174,11 @@ const [
   emotionSoundVolume,
   setEmotionSoundVolume,
 ] = useState(0.35);
+
+const [
+  isSoundVolumeOpen,
+  setSoundVolumeOpen,
+] = useState(false);
 
 
 const [
@@ -1268,6 +1285,17 @@ const repeatCount =
       isConnected={usingRobotData}
       lastUpdated={lastUpdated}
     >
+      <div className="absolute right-4 top-4">
+        <button
+          onClick={handleDelete}
+          className="rounded border border-red-400 bg-black p-2 text-red-300 transition hover:bg-red-500 hover:text-white"
+          title="Delete widget"
+          type="button"
+        >
+          <FaTrash size={12} />
+        </button>
+      </div>
+
       <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-3">
         <div className="flex min-h-48 w-full items-center justify-center overflow-hidden rounded-2xl bg-black shadow-inner">
           <div
@@ -1298,7 +1326,7 @@ const repeatCount =
             {config.label}
           </div>
 
-          <div className="text-xs text-slate-500 dark:text-slate-400">
+          <div className="hidden">
             Sprite frame{" "}
             {currentFrameIndex + 1} ·{" "}
             {repeatLabel}
@@ -1307,54 +1335,7 @@ const repeatCount =
 
         
 
-        {!usingRobotData && (
-          <div className="flex w-full gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setLocalPlaying(
-                  (current) => !current
-                );
-                setAnimationFinished(
-                  false
-                );
-              }}
-              className="flex-1 rounded-lg bg-slate-800 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700"
-            >
-              {localPlaying
-                ? "Pause"
-                : "Play"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSequencePosition(0);
-                setCompletedCycles(0);
-                setAnimationFinished(
-                  false
-                );
-              }}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200"
-            >
-              Reset
-            </button>
-          </div>
-        )}
-
-        <div className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-2 py-1.5 dark:border-slate-700">
-          <div className="min-w-0">
-            <div className="text-xs font-bold text-slate-700 dark:text-slate-200">
-              Local voice preview
-            </div>
-
-            <div className="text-[11px] text-slate-500 dark:text-slate-400">
-              {voicePreviewEnabled
-                ? "Dashboard changes immediately from voice."
-                : "Dashboard waits for the XRP emotion event."}
-            </div>
-          </div>
-
+        <div className="flex w-full items-center justify-between gap-2 rounded-xl border border-emerald-500/70 px-2 py-1.5">
           <button
             type="button"
             onClick={() => {
@@ -1367,13 +1348,41 @@ const repeatCount =
               "text-xs font-bold text-white",
               "transition",
               voicePreviewEnabled
-                ? "bg-purple-600 hover:bg-purple-700"
-                : "bg-slate-500 hover:bg-slate-600",
+                ? "bg-green-600 hover:bg-green-700"
+                : "bg-red-600 hover:bg-red-700",
             ].join(" ")}
           >
+            Emotions synced to XRP screen:{" "}
             {voicePreviewEnabled
               ? "On"
               : "Off"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              void toggleEmotionSounds();
+            }}
+            className={[
+              "shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold text-white transition",
+              emotionSoundsEnabled
+                ? "bg-green-600 hover:bg-green-700"
+                : "bg-red-600 hover:bg-red-700",
+            ].join(" ")}
+          >
+            {emotionSoundsEnabled
+              ? "Sound on"
+              : "Enable sound"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSoundVolumeOpen(true);
+            }}
+            className="shrink-0 rounded-lg border border-emerald-300 bg-black px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-500 hover:text-black"
+          >
+            Volume
           </button>
         </div>
 
@@ -1389,25 +1398,64 @@ const repeatCount =
           }}
         />
 
-        <button
-          type="button"
-          onClick={() => {
-            setShowEmotionKeywordOptions(
-              (current) => !current
-            );
-          }}
-          className="w-full rounded-lg border border-white bg-black px-3 py-2 text-xs font-bold text-white transition hover:bg-white hover:text-black"
+        <div className="grid w-full grid-cols-2 gap-2 rounded-xl border border-blue-500/70 p-2">
+          <button
+            type="button"
+            onClick={() => {
+              setShowEmotionKeywordOptions(true);
+            }}
+            className="rounded-lg border border-blue-300 bg-black px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-500 hover:text-black"
+          >
+            See voice keywords
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setEmotionManagerOpen(true);
+            }}
+            className="rounded-lg border border-blue-300 bg-black px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-500 hover:text-black"
+          >
+            Manage custom emotions
+          </button>
+        </div>
+
+        <Dialog
+          isOpen={showEmotionKeywordOptions}
+          toggleDialog={() =>
+            setShowEmotionKeywordOptions(false)
+          }
         >
-          {showEmotionKeywordOptions
-            ? "Hide voice keywords"
-            : "See voice keywords"}
-        </button>
+          <div className="flex max-h-[88vh] w-[min(94vw,860px)] flex-col gap-4 overflow-hidden bg-black p-5 text-white">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold">
+                  Voice keywords
+                </h2>
 
-        {showEmotionKeywordOptions && (
-          <EmotionKeywordRulesPanel />
-        )}
+                <p className="mt-1 text-xs text-zinc-300">
+                  Create keyword phrases that directly choose the robot emotion from voice.
+                </p>
+              </div>
 
-        <div className="grid w-full grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setShowEmotionKeywordOptions(false)
+                }
+                className="rounded border border-white bg-black px-3 py-1 text-xs font-bold text-white transition hover:bg-white hover:text-black"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="min-h-0 overflow-auto pr-1">
+              <EmotionKeywordRulesPanel />
+            </div>
+          </div>
+        </Dialog>
+
+        <div className="hidden">
           <button
             type="button"
             onClick={() => {
@@ -1438,7 +1486,7 @@ const repeatCount =
           </button>
         </div>
 
-        <div className="flex w-full items-center gap-2 rounded-xl border border-slate-200 px-2 py-1.5 dark:border-slate-700">
+        <div className="hidden">
           <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
             Vol
           </span>
@@ -1470,6 +1518,69 @@ const repeatCount =
             %
           </span>
         </div>
+
+        <Dialog
+          isOpen={isSoundVolumeOpen}
+          toggleDialog={() =>
+            setSoundVolumeOpen(false)
+          }
+        >
+          <div className="flex w-[min(92vw,520px)] flex-col gap-4 bg-black p-5 text-white">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold">
+                  Sound volume
+                </h2>
+
+                <p className="mt-1 text-xs text-zinc-300">
+                  Adjust the emotion sound volume.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setSoundVolumeOpen(false)
+                }
+                className="rounded border border-white bg-black px-3 py-1 text-xs font-bold text-white transition hover:bg-white hover:text-black"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-emerald-500/70 bg-black p-4">
+              <div className="mb-3 flex items-center justify-between text-xs font-bold text-white">
+                <span>Volume</span>
+                <span>
+                  {Math.round(
+                    emotionSoundVolume * 100
+                  )}
+                  %
+                </span>
+              </div>
+
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={emotionSoundVolume}
+                disabled={
+                  !emotionSoundsEnabled
+                }
+                onChange={(event) => {
+                  setEmotionSoundVolume(
+                    Number(
+                      event.target.value
+                    )
+                  );
+                }}
+                aria-label="Emotion sound volume"
+                className="w-full disabled:cursor-not-allowed disabled:opacity-40"
+              />
+            </div>
+          </div>
+        </Dialog>
 
         {emotionSoundError && (
           <div className="w-full rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">

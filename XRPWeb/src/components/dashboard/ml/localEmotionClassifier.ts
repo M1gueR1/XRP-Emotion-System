@@ -51,15 +51,6 @@ const EMOTION_LABEL_BY_KEY:
   };
 
 
-/*
- * Important:
- * "really" and "very" stay OUT of STOP_WORDS on purpose.
- * They help the model learn intensity patterns such as:
- * - I like chocolate
- * - I really love chocolate
- * - I hate exams
- * - I really hate exams
- */
 const STOP_WORDS =
   new Set([
     "a",
