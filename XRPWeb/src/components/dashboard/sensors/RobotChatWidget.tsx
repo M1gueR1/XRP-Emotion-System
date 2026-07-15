@@ -2379,7 +2379,6 @@ type TeacherModeDialogProps = {
   localLlmModelId: string;
   localLlmRuntime: LocalLlmRuntimeState;
   newTeacherPasscode: string;
-  responseDebug: RobotResponseDebug | null;
   safetyPolicy: ChildSafetyPolicy;
   teacherModeStatus: string;
   teacherPasscodeInput: string;
@@ -2417,7 +2416,6 @@ function TeacherModeDialog({
   localLlmModelId,
   localLlmRuntime,
   newTeacherPasscode,
-  responseDebug,
   safetyPolicy,
   teacherModeStatus,
   teacherPasscodeInput,
@@ -2444,6 +2442,89 @@ function TeacherModeDialog({
 }: TeacherModeDialogProps) {
   const importInputRef =
     useRef<HTMLInputElement>(null);
+
+  const [
+    showAllAiModels,
+    setShowAllAiModels,
+  ] = useState(false);
+
+  const [
+    pendingAiResponseMode,
+    setPendingAiResponseMode,
+  ] = useState<AiResponseMode>(
+    aiResponseMode
+  );
+
+  const isRecommendedAiMode = (
+    mode: AiResponseMode
+  ): boolean =>
+    mode === "hybrid_local" ||
+    mode === "smart_fallback";
+
+  useEffect(() => {
+    if (isOpen) {
+      setPendingAiResponseMode(
+        isRecommendedAiMode(aiResponseMode)
+          ? aiResponseMode
+          : "hybrid_local"
+      );
+      setShowAllAiModels(false);
+    }
+  }, [aiResponseMode, isOpen]);
+
+  const handleToggleAiModelList = (): void => {
+    if (showAllAiModels) {
+      if (!isRecommendedAiMode(pendingAiResponseMode)) {
+        setPendingAiResponseMode("hybrid_local");
+      }
+
+      setShowAllAiModels(false);
+      return;
+    }
+
+    setShowAllAiModels(true);
+  };
+
+  const displayedAiModes: AiResponseMode[] =
+    showAllAiModels
+      ? [
+          "local_keywords_only",
+          "local_downloaded_model_only",
+          "hybrid_local",
+          "smart_fallback",
+          "rescue_with_gemini",
+        ]
+      : [
+          "hybrid_local",
+          "smart_fallback",
+        ];
+
+  const selectedModeUsesLocalModel =
+    pendingAiResponseMode === "hybrid_local" ||
+    pendingAiResponseMode === "local_downloaded_model_only";
+
+  const selectedModeUsesGemini =
+    pendingAiResponseMode === "smart_fallback" ||
+    pendingAiResponseMode === "rescue_with_gemini";
+
+  const aiModeOptionLabel = (
+    mode: AiResponseMode
+  ): string => {
+    switch (mode) {
+      case "local_keywords_only":
+        return "Keywords / rules only";
+      case "local_downloaded_model_only":
+        return "Downloaded local model only (experimental)";
+      case "hybrid_local":
+        return "Keywords + local model";
+      case "smart_fallback":
+        return "Keywords + Gemini fallback";
+      case "rescue_with_gemini":
+        return "Full Gemini";
+      default:
+        return aiResponseModeLabel(mode);
+    }
+  };
 
   const handleImportFile = (
     event: React.ChangeEvent<HTMLInputElement>
@@ -2563,141 +2644,127 @@ function TeacherModeDialog({
                 </div>
 
                 <div className="grid gap-3 rounded-lg border border-purple-400 bg-purple-950/20 p-3 text-white">
-                  <div className="text-[10px] font-bold uppercase tracking-wide text-purple-200">
-                    AI response settings
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-purple-200">
+                      {showAllAiModels
+                        ? "All Models"
+                        : "Recommended Models"}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleToggleAiModelList}
+                      className="rounded border border-purple-300 bg-purple-700 px-3 py-1 text-[10px] font-bold text-white transition hover:bg-purple-600"
+                    >
+                      {showAllAiModels
+                        ? "View recommended models"
+                        : "View all available models"}
+                    </button>
                   </div>
 
                   <div className="grid gap-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-purple-300 bg-purple-950/20 p-2 text-[10px] leading-4 text-purple-100">
+                      <span className="font-bold uppercase tracking-wide text-purple-200">
+                        Currently used model
+                      </span>
+
+                      <span className="text-right text-purple-50">
+                        {aiModeOptionLabel(aiResponseMode)}
+                      </span>
+                    </div>
+
                     <label className="text-[10px] font-bold uppercase tracking-wide text-purple-200">
                       AI response mode
                     </label>
 
                     <select
-                      value={aiResponseMode}
+                      value={pendingAiResponseMode}
                       onChange={(event) =>
-                        onChangeAiResponseMode(
+                        setPendingAiResponseMode(
                           event.target
                             .value as AiResponseMode
                         )
                       }
                       className="min-w-0 rounded border border-purple-400 bg-purple-950/20 px-2 py-1 text-xs text-purple-50 outline-none focus:ring-2 focus:ring-purple-300 w-full"
                     >
-                      <option
-                        value="local_keywords_only"
-                        className="bg-black text-white"
-                      >
-                        Keywords / rules only
-                      </option>
-                      <option
-                        value="local_downloaded_model_only"
-                        className="bg-black text-white"
-                      >
-                        Downloaded local model only (experimental)
-                      </option>
-                      <option
-                        value="hybrid_local"
-                        className="bg-black text-white"
-                      >
-                        Keywords + local semantic intelligence (recommended)
-                      </option>
-                      <option
-                        value="smart_fallback"
-                        className="bg-black text-white"
-                      >
-                        Keywords + Gemini rescue
-                      </option>
-                      <option
-                        value="rescue_with_gemini"
-                        className="bg-black text-white"
-                      >
-                        Full Gemini
-                      </option>
+                      {displayedAiModes.map((mode) => (
+                        <option
+                          key={mode}
+                          value={mode}
+                          className="bg-black text-white"
+                        >
+                          {aiModeOptionLabel(mode)}
+                        </option>
+                      ))}
                     </select>
 
                     <div className="rounded-lg border border-purple-300 bg-purple-950/20 p-2 text-[10px] leading-4 text-purple-100">
-                      Current mode: {aiResponseModeLabel(aiResponseMode)}.
-                      Rules only uses deterministic parsing, local classifiers, and response banks without Qwen or Gemini.
-                      Downloaded local model only lets Qwen generate the visible response but keeps deterministic safety and memory validation.
-                      The recommended local semantic mode calls Qwen only for uncertain analysis, then uses controlled response banks.
-                      Gemini rescue runs the complete local pipeline first. Full Gemini generates the visible response after safety and deterministic profile validation.
+                      Selected mode: {aiModeOptionLabel(pendingAiResponseMode)}.
                     </div>
-                  </div>
 
-                  <LocalLlmSettingsPanel
-                    enabled={localLlmEnabled}
-                    modelId={localLlmModelId}
-                    runtime={localLlmRuntime}
-                    onChangeEnabled={onChangeLocalLlmEnabled}
-                    onLoad={onLoadLocalLlm}
-                    onUnload={onUnloadLocalLlm}
-                  />
-
-                  <div className="rounded-lg border border-purple-300 bg-black/20 p-2 text-[10px] leading-4 text-purple-100">
-                    <div className="font-bold uppercase tracking-wide text-purple-200">
-                      Last response source
-                    </div>
-                    <div>
-                      Source: {responseDebug?.source ?? "None yet"}
-                    </div>
-                    <div>
-                      Local model called: {responseDebug?.localModelCalled ? "Yes" : "No"}
-                    </div>
-                    <div>
-                      Mode: {responseDebug?.mode ?? aiResponseModeLabel(aiResponseMode)}
-                    </div>
-                    <div>Intent: {responseDebug?.detectedIntent ?? "None yet"}</div>
-                    <div>Student emotion: {responseDebug?.studentEmotion ?? "None yet"}</div>
-                    <div>Emotion confidence: {responseDebug ? `${Math.round(responseDebug.emotionConfidence * 100)}%` : "None yet"}</div>
-                    <div>Response category: {responseDebug?.responseCategory ?? "None yet"}</div>
-                    <div>Identity state: {responseDebug?.identityState ?? "None yet"}</div>
-                    <div>Profile candidates: {responseDebug?.profileCandidates.join(", ") || "None"}</div>
-                    <div>Accepted updates: {responseDebug?.acceptedProfileUpdates.join(", ") || "None"}</div>
-                    <div>Rejected updates: {responseDebug?.rejectedProfileUpdates.join(", ") || "None"}</div>
-                    <div>Clarification requested: {responseDebug?.clarificationRequested ? "Yes" : "No"}</div>
-                    <div>Lightweight classifier used: {responseDebug?.lightweightClassifierUsed ? "Yes" : "No"}</div>
-                    <div>Qwen request ID: {responseDebug?.qwenRequestId ?? "None"}</div>
-                    <div>Qwen parse status: {responseDebug?.qwenParseStatus ?? "not called"}</div>
-                    <div>Gemini called: {responseDebug?.geminiCalled ? "Yes" : "No"}</div>
-                    <div>Safety result: {responseDebug?.safetyResult ?? "None yet"}</div>
-                    <div>Unsupported intent: {responseDebug?.unsupportedIntent ? "Yes" : "No"}</div>
-                    {getProfileSanitizationNotice() && (
-                      <div className="mt-1 text-amber-200">{getProfileSanitizationNotice()}</div>
-                    )}
-                  </div>
-
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <input
-                      value={geminiModel}
-                      onChange={(event) =>
-                        onChangeGeminiModel(
-                          event.target.value
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onChangeAiResponseMode(
+                          pendingAiResponseMode
                         )
                       }
-                      className="min-w-0 rounded border border-purple-400 bg-purple-950/20 px-2 py-1 text-xs text-purple-50 placeholder:text-purple-200/60 outline-none focus:ring-2 focus:ring-purple-300 w-full"
-                      placeholder="Gemini model, e.g. gemini-2.5-flash"
-                    />
-
-                    <input
-                      value={geminiApiKey}
-                      onChange={(event) =>
-                        onChangeGeminiApiKey(
-                          event.target.value
-                        )
+                      disabled={
+                        pendingAiResponseMode === aiResponseMode
                       }
-                      className="min-w-0 rounded border border-purple-400 bg-purple-950/20 px-2 py-1 text-xs text-purple-50 placeholder:text-purple-200/60 outline-none focus:ring-2 focus:ring-purple-300 w-full"
-                      placeholder="Gemini API key"
-                      type="password"
-                    />
+                      className="w-fit rounded border border-emerald-300 bg-emerald-700 px-3 py-1 text-xs font-bold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:border-zinc-500 disabled:bg-zinc-700 disabled:text-zinc-300"
+                    >
+                      Apply changes
+                    </button>
                   </div>
 
-                  <div className="rounded-lg border border-sky-400 bg-sky-950/20 p-2 text-[10px] leading-4 text-sky-50">
-                    Demo mode: the API key is stored only in this browser localStorage.
-                    For production, use a backend proxy instead of exposing keys in the frontend.
-                  </div>
+                  {selectedModeUsesLocalModel && (
+                    <LocalLlmSettingsPanel
+                      enabled={localLlmEnabled}
+                      modelId={localLlmModelId}
+                      runtime={localLlmRuntime}
+                      onChangeEnabled={onChangeLocalLlmEnabled}
+                      onLoad={onLoadLocalLlm}
+                      onUnload={onUnloadLocalLlm}
+                    />
+                  )}
+
+                  {selectedModeUsesGemini && (
+                    <div className="grid gap-2 rounded-lg border border-purple-300 bg-purple-950/20 p-3 md:grid-cols-2">
+                      <input
+                        value={geminiModel}
+                        onChange={(event) =>
+                          onChangeGeminiModel(
+                            event.target.value
+                          )
+                        }
+                        className="min-w-0 rounded border border-purple-400 bg-purple-950/20 px-2 py-1 text-xs text-purple-50 placeholder:text-purple-200/60 outline-none focus:ring-2 focus:ring-purple-300 w-full"
+                        placeholder="Gemini model, e.g. gemini-2.5-flash"
+                      />
+
+                      <input
+                        value={geminiApiKey}
+                        onChange={(event) =>
+                          onChangeGeminiApiKey(
+                            event.target.value
+                          )
+                        }
+                        className="min-w-0 rounded border border-purple-400 bg-purple-950/20 px-2 py-1 text-xs text-purple-50 placeholder:text-purple-200/60 outline-none focus:ring-2 focus:ring-purple-300 w-full"
+                        placeholder="Gemini API key"
+                        type="password"
+                      />
+                    </div>
+                  )}
 
                   {geminiStatus && (
                     <div className="rounded-lg border border-amber-300 bg-amber-950/20 p-2 text-[10px] leading-4 text-amber-50">
                       {geminiStatus}
+                    </div>
+                  )}
+
+                  {getProfileSanitizationNotice() && (
+                    <div className="rounded-lg border border-amber-300 bg-amber-950/20 p-2 text-[10px] leading-4 text-amber-50">
+                      {getProfileSanitizationNotice()}
                     </div>
                   )}
                 </div>
@@ -3220,7 +3287,7 @@ const RobotChatWidget:
   ] = useState("");
 
   const [
-    responseDebug,
+    ,
     setResponseDebug,
   ] = useState<RobotResponseDebug | null>(
     null
@@ -5111,7 +5178,6 @@ const RobotChatWidget:
         newTeacherPasscode={
           newTeacherPasscode
         }
-        responseDebug={responseDebug}
         safetyPolicy={safetyPolicy}
         teacherModeStatus={
           teacherModeStatus
@@ -5577,10 +5643,13 @@ const RobotChatWidget:
                   {robotName}
                 </div>
 
-                <div className="mt-1 flex items-center gap-1">
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-white [animation-delay:-0.2s]" />
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-white [animation-delay:-0.1s]" />
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-white" />
+                <div
+                  className="mt-1 flex items-center gap-1"
+                  aria-label="Robot is typing"
+                >
+                  <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-white [animation-delay:-0.2s]" />
+                  <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-white [animation-delay:-0.1s]" />
+                  <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-white" />
                 </div>
               </div>
             )}
