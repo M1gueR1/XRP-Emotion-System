@@ -26,7 +26,9 @@ import {
   factFromMemoryItem,
   getActiveUserProfile,
   getActiveUserProfileId,
+  getProfileSanitizationNotice,
   getUserProfiles,
+  isPlausibleProfileName,
   deleteUserProfile,
   learnFromProfileText,
   normalizeMemoryText,
@@ -42,6 +44,32 @@ import {
 } from "../profiles/userProfileStore";
 
 import {
+  validateCandidateProfileFact,
+  validateProfileMemoryItem,
+} from "../profiles/profileFactValidator";
+import {
+  extractContextualNameCandidate,
+  identityStateForProfile,
+  isAffirmativeNameConfirmation,
+  isNegativeNameConfirmation,
+  nameConfirmationPrompt,
+  onboardingGreeting,
+} from "../conversation/studentIdentityState";
+import {
+  detectStudentIntent,
+  separateSafetyFromUnderstanding,
+} from "../conversation/studentIntentEngine";
+import { CompanionResponseBank } from "../conversation/responseBank";
+import type {
+  CandidateProfileFact,
+  LocalSemanticAnalysis,
+  ResponseCategory,
+  StudentIdentityState,
+  StudentIntent,
+  StudentEmotion,
+} from "../conversation/studentCompanionTypes";
+
+import {
   findMatchingCustomEmotionKeyword,
   getEmotionOptionByKey,
 } from "../keywords/customEmotionKeywordStore";
@@ -51,6 +79,34 @@ import {
   type GeminiMemoryDraft,
   type GeminiRobotChatResponse,
 } from "../llm/geminiRobotChatAdapter";
+
+import LocalLlmSettingsPanel from "../llm/LocalLlmSettingsPanel";
+
+import {
+  LocalLlmChatAdapter,
+} from "../llm/localLlmChatAdapter";
+
+import {
+  buildLocalLlmMessages,
+  type LocalLlmProfileFields,
+} from "../llm/localLlmPrompt";
+
+import { buildLocalSemanticMessages } from "../llm/localLlmSemantic";
+
+import {
+  applyGeneratedReplySafety,
+  hasProtectedExactAnswer as hasProtectedExactLocalAnswer,
+  shouldAttemptGemini,
+  shouldAttemptLocalLlm,
+  type AiResponseMode,
+} from "../llm/localLlmRouting";
+
+import {
+  DEFAULT_LOCAL_LLM_MODEL_ID,
+  initialLocalLlmRuntimeState,
+  type LocalLlmChatResponse,
+  type LocalLlmRuntimeState,
+} from "../llm/localLlmTypes";
 
 import {
   inferLocalSocialReasoning,
@@ -125,14 +181,50 @@ type ChatEmotionDecision = {
 };
 
 
-type AiResponseMode =
-  | "local_only"
-  | "smart_fallback"
-  | "rescue_with_gemini";
-
 type MemoryViewMode =
   | "neural_network"
   | "basic";
+
+type RobotResponseSource =
+  | "safety"
+  | "profile parser"
+  | "custom keyword"
+  | "memory"
+  | "small talk"
+  | "onboarding"
+  | "local classifier"
+  | "response bank"
+  | "local semantic model"
+  | "local conversational model"
+  | "technical fallback"
+  | "safe fallback"
+  | "social reasoning"
+  | "empathy"
+  | "local rules"
+  | "local LLM"
+  | "Gemini"
+  | "fallback";
+
+type RobotResponseDebug = {
+  source: RobotResponseSource;
+  localModelCalled: boolean;
+  mode: string;
+  detectedIntent: StudentIntent;
+  studentEmotion: StudentEmotion;
+  emotionConfidence: number;
+  responseCategory: ResponseCategory;
+  identityState: StudentIdentityState;
+  profileCandidates: string[];
+  acceptedProfileUpdates: string[];
+  rejectedProfileUpdates: string[];
+  clarificationRequested: boolean;
+  lightweightClassifierUsed: boolean;
+  qwenRequestId?: string;
+  qwenParseStatus: string;
+  geminiCalled: boolean;
+  safetyResult: "safe" | "restricted";
+  unsupportedIntent: boolean;
+};
 
 const FACE_GREETING_COOLDOWN_MS =
   30_000;
@@ -167,6 +259,12 @@ const GEMINI_MODEL_STORAGE_KEY =
 
 const ROBOT_NAME_STORAGE_KEY =
   "xrp-emotion-system:robot-name:v1";
+
+const LOCAL_LLM_ENABLED_STORAGE_KEY =
+  "xrp-emotion-system:local-llm-enabled:v1";
+
+const LOCAL_LLM_MODEL_STORAGE_KEY =
+  "xrp-emotion-system:local-llm-model:v1";
 
 
 function readLocalStorage(
@@ -209,7 +307,10 @@ function isAiResponseMode(
   value: string
 ): value is AiResponseMode {
   return (
-    value === "local_only" ||
+    value === "local_keywords_only" ||
+    value ===
+      "local_downloaded_model_only" ||
+    value === "hybrid_local" ||
     value === "smart_fallback" ||
     value === "rescue_with_gemini"
   );
@@ -228,6 +329,10 @@ function readInitialAiResponseMode():
     return savedMode;
   }
 
+  if (savedMode === "local_only") {
+    return "local_keywords_only";
+  }
+
   const legacyGeminiEnabled =
     readLocalStorage(
       LEGACY_GEMINI_ENABLED_STORAGE_KEY,
@@ -236,7 +341,7 @@ function readInitialAiResponseMode():
 
   return legacyGeminiEnabled
     ? "smart_fallback"
-    : "local_only";
+    : "local_keywords_only";
 }
 
 
@@ -244,14 +349,18 @@ function aiResponseModeLabel(
   mode: AiResponseMode
 ): string {
   switch (mode) {
-    case "local_only":
-      return "Local only";
+    case "local_keywords_only":
+      return "Keywords / rules only";
+    case "local_downloaded_model_only":
+      return "Downloaded local model only";
+    case "hybrid_local":
+      return "Keywords + local semantic intelligence";
     case "smart_fallback":
-      return "Smart Gemini fallback";
+      return "Keywords + Gemini rescue";
     case "rescue_with_gemini":
-      return "Rescue with Gemini";
+      return "Full Gemini";
     default:
-      return "Local only";
+      return "Only local keywords";
   }
 }
 
@@ -1023,15 +1132,18 @@ function buildMemoryQuestionReply(
   }
 
   if (isIdentityQuestion(input)) {
+    const safeName = replyDisplayName(profile);
     if (profile.memoryItems.length === 0) {
-      return `You are ${profile.displayName}. I do not have saved facts about you yet.`;
+      return safeName
+        ? `Your name is ${safeName}. I do not have other saved facts about you yet.`
+        : "I do not have a valid saved name or other profile facts for you yet.";
     }
 
-    return `You are ${profile.displayName}. I remember: ${profile.memoryItems
+    return `${safeName ? `Your name is ${safeName}. ` : ""}I remember: ${profile.memoryItems
       .map((item) =>
         factFromMemoryItem(
           item,
-          profile.displayName
+          safeName ?? "You"
         )
       )
       .join("; ")}.`;
@@ -1121,7 +1233,23 @@ function memoryItemAsUserPhrase(
     item.kind === "work" &&
     item.value
   ) {
-    return `you work on ${item.value}`;
+    return `you work as ${item.value}`;
+  }
+
+  if (item.kind === "role" && item.value) {
+    return `you are a ${item.value}`;
+  }
+
+  if (item.kind === "activity" && (item.value || item.target)) {
+    return `you do ${item.value ?? item.target}`;
+  }
+
+  if (item.kind === "skill" && item.value) {
+    return `you are skilled at ${item.value}`;
+  }
+
+  if (item.kind === "trait" && item.value) {
+    return `you describe yourself as ${item.value}`;
   }
 
   if (
@@ -1155,6 +1283,22 @@ function isStrongEmotionalDecision(
 }
 
 
+function replyDisplayName(
+  profile: UserProfile | null | undefined
+): string | undefined {
+  if (
+    profile?.displayName &&
+    isPlausibleProfileName(
+      profile.displayName
+    )
+  ) {
+    return profile.displayName;
+  }
+
+  return undefined;
+}
+
+
 function buildRobotReply(
   input: string,
   profileBefore: UserProfile | null,
@@ -1184,7 +1328,7 @@ function buildRobotReply(
   }
 
   const name =
-    profile?.displayName;
+    replyDisplayName(profile);
 
   const learnedNewProfile =
     profileAfter &&
@@ -1201,6 +1345,13 @@ function buildRobotReply(
       profileBefore.memoryItems.length;
 
   if (learnedNewProfile) {
+    const learnedName =
+      replyDisplayName(profileAfter);
+
+    if (!learnedName) {
+      return "I understood some personal details, but I still do not have a safe name to use for you.";
+    }
+
     const facts =
       profileAfter.memoryItems.length > 0
         ? ` I also saved what I learned: ${profileAfter.memoryItems
@@ -1210,23 +1361,23 @@ function buildRobotReply(
 
     if (isStrongEmotionalDecision(decision)) {
       if (decision.emotionLabel === "Sad") {
-        return `Nice to meet you, ${profileAfter.displayName}. I'm sorry you're feeling this way. I'm here with you.${facts}`;
+        return `Nice to meet you, ${learnedName}. I'm sorry you're feeling this way. I'm here with you.${facts}`;
       }
 
       if (decision.emotionLabel === "Upset") {
-        return `Nice to meet you, ${profileAfter.displayName}. That sounds frustrating, but we'll take it one step at a time.${facts}`;
+        return `Nice to meet you, ${learnedName}. That sounds frustrating, but we'll take it one step at a time.${facts}`;
       }
 
       if (decision.emotionLabel === "Excited") {
-        return `Nice to meet you, ${profileAfter.displayName}. That sounds exciting.${facts}`;
+        return `Nice to meet you, ${learnedName}. That sounds exciting.${facts}`;
       }
 
       if (decision.emotionLabel === "In love") {
-        return `Nice to meet you, ${profileAfter.displayName}. I like being your robot friend too.${facts}`;
+        return `Nice to meet you, ${learnedName}. I like being your robot friend too.${facts}`;
       }
     }
 
-    return `Nice to meet you, ${profileAfter.displayName}.${facts}`;
+    return `Nice to meet you, ${learnedName}.${facts}`;
   }
 
   if (
@@ -1251,8 +1402,16 @@ function buildRobotReply(
             left.intensity
         )[0];
 
+    const learnedName =
+      replyDisplayName(profileAfter);
+
+    const prefix =
+      learnedName
+        ? `Got it, ${learnedName}.`
+        : "Got it.";
+
     if (strongest?.target) {
-      return `Got it, ${profileAfter.displayName}. I learned that you ${describeIntensity(
+      return `${prefix} I learned that you ${describeIntensity(
         strongest.intensity
       )} ${
         strongest.polarity === "hate" ||
@@ -1266,7 +1425,7 @@ function buildRobotReply(
       } ${strongest.target}.`;
     }
 
-    return `Got it, ${profileAfter.displayName}. I updated your memory: ${newItems
+    return `${prefix} I updated your memory: ${newItems
       .map(memoryItemAsUserPhrase)
       .join("; ")}.`;
   }
@@ -1409,6 +1568,48 @@ function emotionDecisionFromGemini(
 }
 
 
+function emotionDecisionFromLocalLlm(
+  response: LocalLlmChatResponse
+): ChatEmotionDecision {
+  const emotion = {
+    happy: [EMOTION_HAPPY_ID, "Happy"],
+    sad: [EMOTION_SAD_ID, "Sad"],
+    upset: [EMOTION_UPSET_ID, "Upset"],
+    excited: [EMOTION_EXCITED_ID, "Excited"],
+    in_love: [EMOTION_IN_LOVE_ID, "In love"],
+    idle: [EMOTION_IDLE_ID, "Idle"],
+  }[response.emotionKey] as [number, string];
+
+  return {
+    emotionId: emotion[0],
+    emotionLabel: emotion[1],
+    confidence: response.confidence,
+    reason: `Browser-local LLM: ${response.reason}`,
+  };
+}
+
+function emotionDecisionFromSemantic(
+  response: LocalSemanticAnalysis
+): ChatEmotionDecision {
+  const emotion = {
+    happy: [EMOTION_HAPPY_ID, "Happy"],
+    sad: [EMOTION_SAD_ID, "Sad"],
+    upset: [EMOTION_UPSET_ID, "Upset"],
+    excited: [EMOTION_EXCITED_ID, "Excited"],
+    in_love: [EMOTION_IN_LOVE_ID, "In love"],
+    puzzled: [EMOTION_IDLE_ID, "Puzzled"],
+    idle: [EMOTION_IDLE_ID, "Idle"],
+  }[response.robotEmotion] as [number, string];
+
+  return {
+    emotionId: emotion[0],
+    emotionLabel: emotion[1],
+    confidence: response.emotionConfidence,
+    reason: `Browser-local semantic analysis detected ${response.studentEmotion} emotion and ${response.intent} intent.`,
+  };
+}
+
+
 function createMemoryItemFromGeminiDraft(
   draft: GeminiMemoryDraft,
   fallbackSourceText: string
@@ -1430,7 +1631,7 @@ function createMemoryItemFromGeminiDraft(
     return null;
   }
 
-  return {
+  const item: UserMemoryItem = {
     id: safeRandomId(),
     kind,
     field: draft.field,
@@ -1459,6 +1660,41 @@ function createMemoryItemFromGeminiDraft(
     createdAt,
     updatedAt: createdAt,
   };
+
+  return validateProfileMemoryItem(item).accepted ? item : null;
+}
+
+function createMemoryItemFromSemanticCandidate(
+  candidate: CandidateProfileFact,
+  sourceText: string
+): UserMemoryItem | null {
+  if (candidate.field === "name" || !validateCandidateProfileFact(candidate).accepted) {
+    return null;
+  }
+  if (!normalizeText(sourceText).includes(normalizeText(candidate.value))) {
+    return null;
+  }
+  const createdAt = nowIso();
+  const common = {
+    id: safeRandomId(),
+    intensity: candidate.confidence,
+    sourceText,
+    source: "llm" as const,
+    createdAt,
+    updatedAt: createdAt,
+  };
+  const item: UserMemoryItem = candidate.field === "like" || candidate.field === "dislike"
+    ? { ...common, kind: "preference", target: candidate.value, polarity: candidate.field }
+    : candidate.field === "studies"
+      ? { ...common, kind: "study", field: "studies", value: candidate.value }
+      : candidate.field === "occupation"
+        ? { ...common, kind: "work", field: "occupation", value: candidate.value }
+        : candidate.field === "role" || candidate.field === "skill" || candidate.field === "trait"
+          ? { ...common, kind: candidate.field, field: candidate.field, value: candidate.value }
+          : candidate.field === "activity"
+            ? { ...common, kind: "activity", field: "activity", value: candidate.value, target: candidate.value }
+            : { ...common, kind: "identity", field: candidate.field, value: candidate.value };
+  return validateProfileMemoryItem(item).accepted ? item : null;
 }
 
 
@@ -1473,55 +1709,6 @@ function getUserProfileByIdFallback(
   );
 }
 
-
-function shouldUseGeminiForMessage(
-  mode: AiResponseMode,
-  apiKey: string,
-  hasExactLocalAnswer: boolean,
-  localConfidence: number,
-  localMlConfidence: number,
-  localMlEmotionKey: string,
-  localEmpathyConfidence: number,
-  isSmallTalk: boolean
-): boolean {
-  if (mode !== "smart_fallback") {
-    return false;
-  }
-
-  const localMlIsUseful =
-    localMlEmotionKey !== "idle" &&
-    localMlConfidence >= 0.62;
-
-  const localEmpathyIsUseful =
-    localEmpathyConfidence >= 0.72;
-
-  return (
-    apiKey.trim().length > 0 &&
-    !hasExactLocalAnswer &&
-    !isSmallTalk &&
-    localConfidence < 0.76 &&
-    !localMlIsUseful &&
-    !localEmpathyIsUseful
-  );
-}
-
-
-function shouldRescueLocalReplyWithGemini(
-  mode: AiResponseMode,
-  apiKey: string,
-  hasExactLocalAnswer: boolean,
-  isSmallTalk: boolean,
-  robotReply: string,
-  decision: ChatEmotionDecision
-): boolean {
-  return (
-    mode === "rescue_with_gemini" &&
-    apiKey.trim().length > 0 &&
-    !hasExactLocalAnswer &&
-    !isSmallTalk &&
-    isWeakLocalReply(robotReply, decision)
-  );
-}
 
 function profileMemoryFacts(
   profile: UserProfile | null
@@ -1542,6 +1729,84 @@ function profileMemoryFacts(
   return profile.facts.map(
     (fact) => fact.text
   );
+}
+
+
+function localLlmProfileFields(
+  profile: UserProfile | null
+): LocalLlmProfileFields {
+  const fields:
+    LocalLlmProfileFields = {};
+
+  if (!profile) {
+    return fields;
+  }
+
+  if (
+    isPlausibleProfileName(
+      profile.displayName
+    )
+  ) {
+    fields.studentName =
+      profile.displayName;
+  }
+
+  const studies =
+    profile.memoryItems
+      .filter((item) =>
+        item.kind === "study" &&
+        Boolean(item.value)
+      )
+      .map((item) => item.value as string);
+
+  const occupation =
+    profile.memoryItems
+      .filter((item) =>
+        item.kind === "work" &&
+        Boolean(item.value)
+      )
+      .map((item) => item.value as string);
+
+  const interests =
+    profile.memoryItems
+      .filter((item) =>
+        item.kind === "preference" &&
+        Boolean(item.target)
+      )
+      .map((item) => item.target as string);
+
+  const valuesFor = (kind: UserMemoryKind): string[] =>
+    profile.memoryItems
+      .filter((item) => item.kind === kind && Boolean(item.value ?? item.target))
+      .map((item) => (item.value ?? item.target) as string);
+
+  fields.roles = valuesFor("role");
+  fields.activities = valuesFor("activity");
+  fields.skills = valuesFor("skill");
+  fields.traits = valuesFor("trait");
+  fields.origin = profile.memoryItems
+    .filter((item) => item.kind === "identity" && item.field === "origin" && item.value)
+    .map((item) => item.value as string);
+  fields.likes = profile.memoryItems
+    .filter((item) => item.kind === "preference" && ["like", "love", "prefer"].includes(item.polarity ?? "") && item.target)
+    .map((item) => item.target as string);
+  fields.dislikes = profile.memoryItems
+    .filter((item) => item.kind === "preference" && ["dislike", "hate"].includes(item.polarity ?? "") && item.target)
+    .map((item) => item.target as string);
+
+  if (studies.length > 0) {
+    fields.studies = studies;
+  }
+
+  if (occupation.length > 0) {
+    fields.occupation = occupation;
+  }
+
+  if (interests.length > 0) {
+    fields.interests = interests;
+  }
+
+  return fields;
 }
 
 
@@ -2110,7 +2375,11 @@ type TeacherModeDialogProps = {
   geminiModel: string;
   geminiStatus: string;
   isOpen: boolean;
+  localLlmEnabled: boolean;
+  localLlmModelId: string;
+  localLlmRuntime: LocalLlmRuntimeState;
   newTeacherPasscode: string;
+  responseDebug: RobotResponseDebug | null;
   safetyPolicy: ChildSafetyPolicy;
   teacherModeStatus: string;
   teacherPasscodeInput: string;
@@ -2119,6 +2388,7 @@ type TeacherModeDialogProps = {
   onChangeAiResponseMode: (mode: AiResponseMode) => void;
   onChangeGeminiApiKey: (value: string) => void;
   onChangeGeminiModel: (value: string) => void;
+  onChangeLocalLlmEnabled: (enabled: boolean) => void;
   onChangeNewTeacherPasscode: (value: string) => void;
   onChangeTeacherPasscode: () => void;
   onChangeTeacherPasscodeInput: (value: string) => void;
@@ -2127,9 +2397,11 @@ type TeacherModeDialogProps = {
   onClose: () => void;
   onExportRules: () => void;
   onImportRulesText: (jsonText: string) => void;
+  onLoadLocalLlm: () => void;
   onLock: () => void;
   onResetPolicy: () => void;
   onUnlock: () => void;
+  onUnloadLocalLlm: () => void;
   onUpdateSafetyPolicy: (policy: ChildSafetyPolicy) => void;
 };
 
@@ -2141,7 +2413,11 @@ function TeacherModeDialog({
   geminiModel,
   geminiStatus,
   isOpen,
+  localLlmEnabled,
+  localLlmModelId,
+  localLlmRuntime,
   newTeacherPasscode,
+  responseDebug,
   safetyPolicy,
   teacherModeStatus,
   teacherPasscodeInput,
@@ -2150,6 +2426,7 @@ function TeacherModeDialog({
   onChangeAiResponseMode,
   onChangeGeminiApiKey,
   onChangeGeminiModel,
+  onChangeLocalLlmEnabled,
   onChangeNewTeacherPasscode,
   onChangeTeacherPasscode,
   onChangeTeacherPasscodeInput,
@@ -2158,9 +2435,11 @@ function TeacherModeDialog({
   onClose,
   onExportRules,
   onImportRulesText,
+  onLoadLocalLlm,
   onLock,
   onResetPolicy,
   onUnlock,
+  onUnloadLocalLlm,
   onUpdateSafetyPolicy,
 }: TeacherModeDialogProps) {
   const importInputRef =
@@ -2304,30 +2583,86 @@ function TeacherModeDialog({
                       className="min-w-0 rounded border border-purple-400 bg-purple-950/20 px-2 py-1 text-xs text-purple-50 outline-none focus:ring-2 focus:ring-purple-300 w-full"
                     >
                       <option
-                        value="local_only"
+                        value="local_keywords_only"
                         className="bg-black text-white"
                       >
-                        Local only
+                        Keywords / rules only
+                      </option>
+                      <option
+                        value="local_downloaded_model_only"
+                        className="bg-black text-white"
+                      >
+                        Downloaded local model only (experimental)
+                      </option>
+                      <option
+                        value="hybrid_local"
+                        className="bg-black text-white"
+                      >
+                        Keywords + local semantic intelligence (recommended)
                       </option>
                       <option
                         value="smart_fallback"
                         className="bg-black text-white"
                       >
-                        Smart Gemini fallback
+                        Keywords + Gemini rescue
                       </option>
                       <option
                         value="rescue_with_gemini"
                         className="bg-black text-white"
                       >
-                        Rescue with Gemini
+                        Full Gemini
                       </option>
                     </select>
 
                     <div className="rounded-lg border border-purple-300 bg-purple-950/20 p-2 text-[10px] leading-4 text-purple-100">
                       Current mode: {aiResponseModeLabel(aiResponseMode)}.
-                      Local only never calls Gemini. Smart fallback calls Gemini when local confidence is low.
-                      Rescue mode tries local first and only calls Gemini if the local reply would be too weak.
+                      Rules only uses deterministic parsing, local classifiers, and response banks without Qwen or Gemini.
+                      Downloaded local model only lets Qwen generate the visible response but keeps deterministic safety and memory validation.
+                      The recommended local semantic mode calls Qwen only for uncertain analysis, then uses controlled response banks.
+                      Gemini rescue runs the complete local pipeline first. Full Gemini generates the visible response after safety and deterministic profile validation.
                     </div>
+                  </div>
+
+                  <LocalLlmSettingsPanel
+                    enabled={localLlmEnabled}
+                    modelId={localLlmModelId}
+                    runtime={localLlmRuntime}
+                    onChangeEnabled={onChangeLocalLlmEnabled}
+                    onLoad={onLoadLocalLlm}
+                    onUnload={onUnloadLocalLlm}
+                  />
+
+                  <div className="rounded-lg border border-purple-300 bg-black/20 p-2 text-[10px] leading-4 text-purple-100">
+                    <div className="font-bold uppercase tracking-wide text-purple-200">
+                      Last response source
+                    </div>
+                    <div>
+                      Source: {responseDebug?.source ?? "None yet"}
+                    </div>
+                    <div>
+                      Local model called: {responseDebug?.localModelCalled ? "Yes" : "No"}
+                    </div>
+                    <div>
+                      Mode: {responseDebug?.mode ?? aiResponseModeLabel(aiResponseMode)}
+                    </div>
+                    <div>Intent: {responseDebug?.detectedIntent ?? "None yet"}</div>
+                    <div>Student emotion: {responseDebug?.studentEmotion ?? "None yet"}</div>
+                    <div>Emotion confidence: {responseDebug ? `${Math.round(responseDebug.emotionConfidence * 100)}%` : "None yet"}</div>
+                    <div>Response category: {responseDebug?.responseCategory ?? "None yet"}</div>
+                    <div>Identity state: {responseDebug?.identityState ?? "None yet"}</div>
+                    <div>Profile candidates: {responseDebug?.profileCandidates.join(", ") || "None"}</div>
+                    <div>Accepted updates: {responseDebug?.acceptedProfileUpdates.join(", ") || "None"}</div>
+                    <div>Rejected updates: {responseDebug?.rejectedProfileUpdates.join(", ") || "None"}</div>
+                    <div>Clarification requested: {responseDebug?.clarificationRequested ? "Yes" : "No"}</div>
+                    <div>Lightweight classifier used: {responseDebug?.lightweightClassifierUsed ? "Yes" : "No"}</div>
+                    <div>Qwen request ID: {responseDebug?.qwenRequestId ?? "None"}</div>
+                    <div>Qwen parse status: {responseDebug?.qwenParseStatus ?? "not called"}</div>
+                    <div>Gemini called: {responseDebug?.geminiCalled ? "Yes" : "No"}</div>
+                    <div>Safety result: {responseDebug?.safetyResult ?? "None yet"}</div>
+                    <div>Unsupported intent: {responseDebug?.unsupportedIntent ? "Yes" : "No"}</div>
+                    {getProfileSanitizationNotice() && (
+                      <div className="mt-1 text-amber-200">{getProfileSanitizationNotice()}</div>
+                    )}
                   </div>
 
                   <div className="grid gap-2 md:grid-cols-2">
@@ -2797,15 +3132,36 @@ const RobotChatWidget:
   const [
     messages,
     setMessages,
-  ] = useState<ChatMessage[]>([
-    {
+  ] = useState<ChatMessage[]>(() => [
+    Object.assign({
       id: safeRandomId(),
-      role: "robot",
+      role: "robot" as const,
       text: "Hi. You can talk to me or introduce yourself naturally. Example: “Hi im Santiago, I am from Colombia, I study systems engineering, I prefer basketball, and Colombia losing makes me sad.”",
       emotionLabel: "Idle",
       createdAt: nowIso(),
-    },
+    }, {
+        text: replyDisplayName(getActiveUserProfile())
+          ? `Hi, ${replyDisplayName(getActiveUserProfile())}! It's good to see you again.`
+          : onboardingGreeting(readLocalStorage(ROBOT_NAME_STORAGE_KEY, "XRP Robot")),
+        emotionLabel: "Happy",
+      }),
   ]);
+
+  const [studentIdentityState, setStudentIdentityState] =
+    useState<StudentIdentityState>(() =>
+      identityStateForProfile(getActiveUserProfile()) === "known_student"
+        ? "known_student"
+        : "awaiting_name"
+    );
+
+  const messagesRef = useRef(messages);
+  const pendingNameRef = useRef<string | null>(null);
+  const responseBankRef = useRef(new CompanionResponseBank());
+  const activeSendCountRef = useRef(0);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const [
     isRobotTyping,
@@ -2862,6 +3218,46 @@ const RobotChatWidget:
     geminiStatus,
     setGeminiStatus,
   ] = useState("");
+
+  const [
+    responseDebug,
+    setResponseDebug,
+  ] = useState<RobotResponseDebug | null>(
+    null
+  );
+
+  const [
+    localLlmEnabled,
+    setLocalLlmEnabled,
+  ] = useState(
+    () =>
+      readLocalStorage(
+        LOCAL_LLM_ENABLED_STORAGE_KEY,
+        "false"
+      ) === "true"
+  );
+
+  const [
+    localLlmModelId,
+  ] = useState(
+    () =>
+      readLocalStorage(
+        LOCAL_LLM_MODEL_STORAGE_KEY,
+        DEFAULT_LOCAL_LLM_MODEL_ID
+      )
+  );
+
+  const [
+    localLlmRuntime,
+    setLocalLlmRuntime,
+  ] = useState<LocalLlmRuntimeState>(
+    () => initialLocalLlmRuntimeState(
+      readLocalStorage(
+        LOCAL_LLM_MODEL_STORAGE_KEY,
+        DEFAULT_LOCAL_LLM_MODEL_ID
+      )
+    )
+  );
 
   const [
     robotName,
@@ -2941,6 +3337,14 @@ const RobotChatWidget:
   const scrollRef =
     useRef<HTMLDivElement>(null);
 
+  const localLlmAdapterRef =
+    useRef<LocalLlmChatAdapter | null>(null);
+
+  if (!localLlmAdapterRef.current) {
+    localLlmAdapterRef.current =
+      new LocalLlmChatAdapter();
+  }
+
   const faceGreetingTimestampsRef =
     useRef<Map<string, number>>(
       new Map()
@@ -3014,6 +3418,39 @@ const RobotChatWidget:
       geminiModel
     );
   }, [geminiModel]);
+
+  useEffect(() => {
+    writeLocalStorage(
+      LOCAL_LLM_ENABLED_STORAGE_KEY,
+      String(localLlmEnabled)
+    );
+  }, [localLlmEnabled]);
+
+  useEffect(() => {
+    writeLocalStorage(
+      LOCAL_LLM_MODEL_STORAGE_KEY,
+      localLlmModelId
+    );
+  }, [localLlmModelId]);
+
+  useEffect(() => {
+    const adapter =
+      localLlmAdapterRef.current;
+
+    if (!adapter) {
+      return;
+    }
+
+    const unsubscribe =
+      adapter.subscribe(
+        setLocalLlmRuntime
+      );
+
+    return () => {
+      unsubscribe();
+      adapter.dispose();
+    };
+  }, []);
 
   useEffect(() => {
     writeLocalStorage(
@@ -3273,6 +3710,22 @@ const RobotChatWidget:
     );
   };
 
+
+  const handleLoadLocalLlm = async (): Promise<void> => {
+    try {
+      await localLlmAdapterRef.current?.load(
+        localLlmModelId
+      );
+    } catch {
+      // The adapter exposes the actionable error in Teacher Mode.
+    }
+  };
+
+
+  const handleUnloadLocalLlm = (): void => {
+    localLlmAdapterRef.current?.unload();
+  };
+
   const handleSend = async (
     overrideInput?: string
   ): Promise<void> => {
@@ -3288,6 +3741,9 @@ const RobotChatWidget:
       return;
     }
 
+    const messageSnapshot = messagesRef.current;
+    const deterministicIntent = detectStudentIntent(clean);
+
     lastUserChatActivityAtRef.current =
       Date.now();
 
@@ -3296,6 +3752,11 @@ const RobotChatWidget:
         clean,
         safetyPolicy
       );
+
+    const understandingResult = separateSafetyFromUnderstanding(
+      safetyResult.allowed,
+      deterministicIntent
+    );
 
     if (!safetyResult.allowed) {
       const safetyDecision:
@@ -3312,7 +3773,7 @@ const RobotChatWidget:
 
       const nextMessages:
         ChatMessage[] = [
-          ...messages,
+          ...messageSnapshot,
           {
             id: safeRandomId(),
             role: "user",
@@ -3332,14 +3793,126 @@ const RobotChatWidget:
       setMessages(
         nextMessages
       );
+      messagesRef.current = nextMessages;
 
       setInput("");
+
+      setResponseDebug({
+        source: "safety",
+        localModelCalled: false,
+        mode: aiResponseModeLabel(aiResponseMode),
+        detectedIntent: deterministicIntent.intent,
+        studentEmotion: deterministicIntent.studentEmotion,
+        emotionConfidence: deterministicIntent.confidence,
+        responseCategory: deterministicIntent.responseCategory,
+        identityState: studentIdentityState,
+        profileCandidates: [],
+        acceptedProfileUpdates: [],
+        rejectedProfileUpdates: [],
+        clarificationRequested: false,
+        lightweightClassifierUsed: false,
+        qwenParseStatus: "not called",
+        geminiCalled: false,
+        safetyResult: "restricted",
+        unsupportedIntent: understandingResult.unsupportedIntent,
+      });
 
       emitDashboardEmotionPreview(
         safetyDecision,
         clean
       );
 
+      return;
+    }
+
+    const identityProfileBefore = getActiveUserProfile();
+    const existingName = replyDisplayName(identityProfileBefore);
+    if (studentIdentityState === "awaiting_name_confirmation" && pendingNameRef.current) {
+      const confirmed = isAffirmativeNameConfirmation(clean);
+      const rejected = isNegativeNameConfirmation(clean);
+      if (confirmed || rejected) {
+        const candidate = pendingNameRef.current;
+        pendingNameRef.current = null;
+        const updatedProfile = confirmed ? upsertUserProfile(candidate) : identityProfileBefore;
+        if (confirmed && updatedProfile) setActiveUserProfileId(updatedProfile.id);
+        const nextState: StudentIdentityState = updatedProfile && replyDisplayName(updatedProfile)
+          ? "known_student"
+          : "awaiting_name";
+        setStudentIdentityState(nextState);
+        const confirmationReply = confirmed
+          ? `Thanks! I'll call you ${candidate}.`
+          : existingName
+            ? `Okay. I will keep using ${existingName}.`
+            : "No problem - what should I call you?";
+        const next: ChatMessage[] = [
+          ...messageSnapshot,
+          { id: safeRandomId(), role: "user", text: rawInput, createdAt: nowIso() },
+          { id: safeRandomId(), role: "robot", text: confirmationReply, emotionLabel: "Happy", createdAt: nowIso() },
+        ];
+        messagesRef.current = next;
+        setMessages(next);
+        setInput("");
+        setResponseDebug({
+          source: "profile parser", localModelCalled: false, mode: aiResponseModeLabel(aiResponseMode),
+          detectedIntent: "clarification_answer", studentEmotion: "neutral", emotionConfidence: 0.99,
+          responseCategory: "profile_acknowledgement", identityState: nextState,
+          profileCandidates: [`name: ${candidate}`], acceptedProfileUpdates: confirmed ? [`name: ${candidate}`] : [],
+          rejectedProfileUpdates: rejected ? [`name: ${candidate}`] : [], clarificationRequested: false,
+          lightweightClassifierUsed: false, qwenParseStatus: "not called", geminiCalled: false,
+          safetyResult: "safe", unsupportedIntent: false,
+        });
+        refreshProfiles();
+        return;
+      }
+
+      const candidate = pendingNameRef.current;
+      const next: ChatMessage[] = [
+        ...messageSnapshot,
+        { id: safeRandomId(), role: "user", text: rawInput, createdAt: nowIso() },
+        { id: safeRandomId(), role: "robot", text: `Please answer yes or no: should I call you ${candidate}?`, emotionLabel: "Idle", createdAt: nowIso() },
+      ];
+      messagesRef.current = next;
+      setMessages(next);
+      setInput("");
+      setResponseDebug({
+        source: "profile parser", localModelCalled: false, mode: aiResponseModeLabel(aiResponseMode),
+        detectedIntent: "clarification_answer", studentEmotion: "neutral", emotionConfidence: 0.9,
+        responseCategory: "clarification", identityState: "awaiting_name_confirmation",
+        profileCandidates: [`name: ${candidate}`], acceptedProfileUpdates: [], rejectedProfileUpdates: [],
+        clarificationRequested: true, lightweightClassifierUsed: false, qwenParseStatus: "not called",
+        geminiCalled: false, safetyResult: "safe", unsupportedIntent: false,
+      });
+      return;
+    }
+
+    const contextualName = extractContextualNameCandidate(clean, studentIdentityState, existingName);
+    const shouldConfirmNewName =
+      Boolean(contextualName.candidate) &&
+      !existingName &&
+      (studentIdentityState === "unknown_student" || studentIdentityState === "awaiting_name");
+    const shouldConfirmNameChange =
+      Boolean(contextualName.candidate) &&
+      contextualName.requiresConfirmation;
+
+    if (contextualName.candidate && (shouldConfirmNewName || shouldConfirmNameChange)) {
+      pendingNameRef.current = contextualName.candidate;
+      setStudentIdentityState("awaiting_name_confirmation");
+      const next: ChatMessage[] = [
+        ...messageSnapshot,
+        { id: safeRandomId(), role: "user", text: rawInput, createdAt: nowIso() },
+        { id: safeRandomId(), role: "robot", text: nameConfirmationPrompt(contextualName.candidate), emotionLabel: "Idle", createdAt: nowIso() },
+      ];
+      messagesRef.current = next;
+      setMessages(next);
+      setInput("");
+      setResponseDebug({
+        source: "profile parser", localModelCalled: false, mode: aiResponseModeLabel(aiResponseMode),
+        detectedIntent: "self_introduction", studentEmotion: "neutral", emotionConfidence: 0.99,
+        responseCategory: "clarification", identityState: "awaiting_name_confirmation",
+        profileCandidates: [`name: ${contextualName.candidate}`], acceptedProfileUpdates: [], rejectedProfileUpdates: [],
+        clarificationRequested: true, lightweightClassifierUsed: false, qwenParseStatus: "not called",
+        geminiCalled: false, safetyResult: "safe", unsupportedIntent: false,
+      });
       return;
     }
 
@@ -3351,12 +3924,14 @@ const RobotChatWidget:
     };
 
     const messagesWithUser: ChatMessage[] = [
-      ...messages,
+      ...messageSnapshot,
       userMessage,
     ];
 
     setMessages(messagesWithUser);
+    messagesRef.current = messagesWithUser;
     setInput("");
+    activeSendCountRef.current += 1;
     setIsRobotTyping(true);
 
     const profileBefore =
@@ -3366,7 +3941,12 @@ const RobotChatWidget:
       getActiveUserProfileId();
 
     const parsed =
-      parseProfileText(clean);
+      parseProfileText(clean, {
+        allowImplicitName:
+          !existingName &&
+          (studentIdentityState === "unknown_student" || studentIdentityState === "awaiting_name"),
+        knownDisplayName: existingName,
+      });
 
     const keywordMatch =
       findMatchingCustomEmotionKeyword(
@@ -3394,7 +3974,7 @@ const RobotChatWidget:
     const localEmpathy =
       inferLocalEmpathy(
         clean,
-        profileBefore?.displayName
+        replyDisplayName(profileBefore)
       );
 
     const isSmallTalk =
@@ -3425,207 +4005,120 @@ const RobotChatWidget:
     let robotReply =
       "I am listening.";
 
-    let usedGemini = false;
+    let responseSource:
+      RobotResponseSource =
+        "fallback";
 
-    if (
-      shouldUseGeminiForMessage(
-        aiResponseMode,
-        geminiApiKey,
-        Boolean(keywordMatch) ||
-          Boolean(chatKeywordMatch) ||
-          Boolean(preliminaryMemoryAnswer),
-        localSocialReasoning.confidence,
-        localMlEmotion.confidence,
-        localMlEmotion.emotionKey,
-        localEmpathy.decision.confidence,
-        isSmallTalk
-      )
-    ) {
-      setGeminiStatus(
-        "Asking Gemini..."
+    const contextualProfile = contextualName.candidate
+      ? upsertUserProfile(contextualName.candidate)
+      : null;
+
+    const learnedProfile = contextualProfile ??
+      learnFromProfileText(
+        clean,
+        activeProfileId ?? undefined,
+        {
+          allowImplicitName:
+            !existingName &&
+            (studentIdentityState === "unknown_student" || studentIdentityState === "awaiting_name"),
+          knownDisplayName: existingName,
+        }
       );
 
-      try {
-        const geminiResponse =
-          await askGeminiRobotChat({
-            apiKey:
-              geminiApiKey,
-            model:
-              geminiModel,
-            message:
-              clean,
-            activeProfile:
-              profileBefore,
-            recentMessages:
-              messagesWithUser.map((message) => ({
-                role:
-                  message.role,
-                text:
-                  message.text,
-              })),
-          });
-
-        let targetProfile =
-          profileBefore;
-
-        const displayName =
-          geminiResponse.displayName ||
-          parsed.displayName;
-
-        if (displayName) {
-          targetProfile =
-            upsertUserProfile(
-              displayName
-            );
-
-          setActiveUserProfileId(
-            targetProfile.id
-          );
-        } else if (activeProfileId) {
-          targetProfile =
-            getUserProfileByIdFallback(
-              activeProfileId
-            );
-        }
-
-        const memoryItems =
-          geminiResponse.profileUpdates
-            .map((draft) =>
-              createMemoryItemFromGeminiDraft(
-                draft,
-                clean
-              )
-            )
-            .filter(
-              (
-                item
-              ): item is UserMemoryItem =>
-                item !== null
-            );
-
-        if (
-          targetProfile &&
-          memoryItems.length > 0
-        ) {
-          profileAfter =
-            addMemoryItemsToUserProfile(
-              targetProfile.id,
-              memoryItems
-            ) ?? targetProfile;
-        } else {
-          profileAfter =
-            targetProfile;
-        }
-
-        if (profileAfter) {
-          setActiveUserProfileId(
-            profileAfter.id
-          );
-        }
-
-        decision =
-          emotionDecisionFromGemini(
-            geminiResponse
-          );
-
-        robotReply =
-          geminiResponse.reply;
-
-        usedGemini = true;
-
-        setGeminiStatus(
-          `Gemini used: ${geminiResponse.reason}`
-        );
-      } catch (error) {
-        setGeminiStatus(
-          error instanceof Error
-            ? `Gemini fallback failed: ${error.message}`
-            : "Gemini fallback failed."
-        );
+    if (learnedProfile) {
+      setActiveUserProfileId(
+        learnedProfile.id
+      );
+      if (replyDisplayName(learnedProfile)) {
+        setStudentIdentityState("known_student");
       }
     }
 
-    if (!usedGemini) {
-      const learnedProfile =
-        learnFromProfileText(
-          clean,
-          activeProfileId ?? undefined
-        );
+    profileAfter =
+      learnedProfile ??
+      getActiveUserProfile();
 
-      if (learnedProfile) {
-        setActiveUserProfileId(
-          learnedProfile.id
-        );
-      }
+    const memoryAnswer =
+      buildMemoryQuestionReply(
+        clean,
+        profileAfter ?? profileBefore
+      );
 
-      profileAfter =
-        learnedProfile ??
-        getActiveUserProfile();
+    const hasStrongSocialAnswer =
+      shouldPreferLocalSocialReasoning(
+        localSocialReasoning
+      ) && Boolean(localSocialReasoning.reply);
 
-      const memoryAnswer =
-        buildMemoryQuestionReply(
-          clean,
-          profileAfter ?? profileBefore
-        );
+    const hasStrongEmpathyAnswer =
+      shouldPreferLocalEmpathy(
+        localEmpathy
+      );
 
-      decision =
-        chatKeywordMatch
+    decision =
+      parsed.clarification
+        ? {
+            emotionId:
+              EMOTION_IDLE_ID,
+            emotionLabel:
+              "Idle",
+            confidence:
+              0.82,
+            reason:
+              "The profile parser found an ambiguous personal statement and asked for clarification.",
+          }
+        : chatKeywordMatch
+        ? {
+            emotionId:
+              getChatKeywordEmotionOption(
+                chatKeywordMatch.rule.emotionKey
+              ).emotionId,
+            emotionLabel:
+              getChatKeywordEmotionOption(
+                chatKeywordMatch.rule.emotionKey
+              ).label,
+            confidence:
+              chatKeywordMatch.rule.priority / 100,
+            reason:
+              `Custom chat keyword "${chatKeywordMatch.rule.phrase}" matched this chat message.`,
+          }
+        : keywordMatch
           ? {
               emotionId:
-                getChatKeywordEmotionOption(
-                  chatKeywordMatch.rule.emotionKey
-                ).emotionId,
+                keywordMatch.rule.emotionId,
               emotionLabel:
-                getChatKeywordEmotionOption(
-                  chatKeywordMatch.rule.emotionKey
+                getEmotionOptionByKey(
+                  keywordMatch.rule.emotionKey
                 ).label,
               confidence:
-                chatKeywordMatch.rule.priority / 100,
+                keywordMatch.rule.priority / 100,
               reason:
-                `Custom chat keyword "${chatKeywordMatch.rule.phrase}" matched this chat message.`,
+                `Custom keyword "${keywordMatch.rule.phrase}" matched this chat message.`,
             }
-          : keywordMatch
+          : memoryAnswer
+          ? {
+              emotionId:
+                EMOTION_IDLE_ID,
+              emotionLabel:
+                "Idle",
+              confidence:
+                0.70,
+              reason:
+                "The user asked a memory question, so the robot answered from saved profile memory.",
+            }
+          : isSmallTalk
             ? {
                 emotionId:
-                  keywordMatch.rule.emotionId,
+                  EMOTION_HAPPY_ID,
                 emotionLabel:
-                  getEmotionOptionByKey(
-                    keywordMatch.rule.emotionKey
-                  ).label,
+                  "Happy",
                 confidence:
-                  keywordMatch.rule.priority / 100,
+                  0.72,
                 reason:
-                  `Custom keyword "${keywordMatch.rule.phrase}" matched this chat message.`,
+                  "The user sent a greeting or small-talk message.",
               }
-            : memoryAnswer
-            ? {
-                emotionId:
-                  EMOTION_IDLE_ID,
-                emotionLabel:
-                  "Idle",
-                confidence:
-                  0.55,
-                reason:
-                  "The user asked a memory question, so the robot answered from saved profile memory.",
-              }
-            : isSmallTalk
-              ? {
-                  emotionId:
-                    EMOTION_HAPPY_ID,
-                  emotionLabel:
-                    "Happy",
-                  confidence:
-                    0.72,
-                  reason:
-                    "The user sent a greeting or small-talk message.",
-                }
-              : shouldPreferLocalSocialReasoning(
-                  localSocialReasoning
-                )
+            : hasStrongSocialAnswer
               ? localSocialReasoning.decision
-              : shouldPreferLocalEmpathy(
-                  localEmpathy
-                )
+              : hasStrongEmpathyAnswer
                 ? localEmpathy.decision
                 : shouldPreferLocalMlEmotion(
                     localMlEmotion
@@ -3645,111 +4138,551 @@ const RobotChatWidget:
                       profileAfter
                     );
 
-      robotReply =
-        chatKeywordMatch
-          ? (
-              chatKeywordMatch.rule.reply ||
-              `I matched "${chatKeywordMatch.rule.phrase}", so I changed my emotion to ${decision.emotionLabel}.`
+    robotReply =
+      parsed.clarification
+        ? parsed.clarification
+        : chatKeywordMatch
+        ? (
+            chatKeywordMatch.rule.reply ||
+            `I matched "${chatKeywordMatch.rule.phrase}", so I changed my emotion to ${decision.emotionLabel}.`
+          )
+        : keywordMatch
+          ? buildRobotReply(
+              clean,
+              profileBefore,
+              profileAfter,
+              parsed.memoryItems,
+              decision,
+              keywordMatch.rule.phrase
             )
-          : isSmallTalk
-            ? smallTalkReply(
-                clean,
-                robotName,
-                profileAfter?.displayName ??
-                  profileBefore?.displayName
-              )
-            : localSocialReasoning.reply ??
-              (
-                shouldPreferLocalEmpathy(
-                  localEmpathy
+          : memoryAnswer
+            ? memoryAnswer
+            : isSmallTalk
+              ? smallTalkReply(
+                  clean,
+                  robotName,
+                  replyDisplayName(profileAfter) ??
+                    replyDisplayName(profileBefore)
                 )
+              : hasStrongSocialAnswer
+                ? localSocialReasoning.reply ?? "I am listening."
+                : hasStrongEmpathyAnswer
                   ? localEmpathy.reply
                   : shouldPreferLocalMlEmotion(
                       localMlEmotion
                     )
                     ? localMlEmpathyReply(
                         localMlEmotion,
-                        profileAfter?.displayName ??
-                          profileBefore?.displayName
+                        replyDisplayName(profileAfter) ??
+                          replyDisplayName(profileBefore)
                       )
                     : buildRobotReply(
                         clean,
                         profileBefore,
                         profileAfter,
                         parsed.memoryItems,
-                        decision,
-                        keywordMatch?.rule.phrase
-                      )
-              );
+                        decision
+                      );
 
-      if (
-        didNormalizeChatInput(
-          rawInput,
-          clean
-        ) &&
-        !chatKeywordMatch
+    responseSource =
+      parsed.clarification
+        ? "profile parser"
+        : chatKeywordMatch || keywordMatch
+          ? "custom keyword"
+          : memoryAnswer ||
+            preliminaryMemoryAnswer ||
+            parsed.displayName ||
+            parsed.memoryItems.length > 0
+            ? "memory"
+            : isSmallTalk
+              ? "small talk"
+              : hasStrongSocialAnswer
+                ? "social reasoning"
+                : hasStrongEmpathyAnswer
+                  ? "empathy"
+                  : shouldPreferLocalMlEmotion(
+                      localMlEmotion
+                    )
+                    ? "local rules"
+                    : "fallback";
+
+    let responseCategory: ResponseCategory = parsed.clarification
+      ? "clarification"
+      : deterministicIntent.responseCategory;
+
+    const storedNewFacts = Boolean(
+      profileAfter &&
+      (
+        !profileBefore ||
+        profileAfter.id !== profileBefore.id ||
+        profileAfter.memoryItems.length > profileBefore.memoryItems.length
+      )
+    );
+
+    if (!chatKeywordMatch && !keywordMatch && !memoryAnswer) {
+      if (parsed.clarification) {
+        responseCategory = "clarification";
+      } else if (contextualName.candidate && profileAfter) {
+        robotReply = `Nice to meet you, ${contextualName.candidate}!`;
+        responseSource = "onboarding";
+        responseCategory = "profile_acknowledgement";
+      } else if (parsed.memoryItems.length > 0) {
+        responseCategory = parsed.memoryItems.some((item) => item.kind === "preference")
+          ? "preference_acknowledgement"
+          : "profile_acknowledgement";
+        robotReply = responseBankRef.current.select(responseCategory, {
+          studentName: replyDisplayName(profileAfter),
+          factStored: storedNewFacts,
+          factValue: parsed.memoryItems.map(memoryItemAsUserPhrase).join("; "),
+        });
+        responseSource = "response bank";
+      } else if (
+        deterministicIntent.intent === "wellbeing_question" ||
+        deterministicIntent.intent === "robot_identity_question" ||
+        deterministicIntent.intent === "farewell" ||
+        deterministicIntent.intent === "general_question" ||
+        deterministicIntent.intent === "emotional_disclosure"
       ) {
-        robotReply =
-          `${robotReply} I interpreted your message as: "${clean}".`;
+        robotReply = responseBankRef.current.select(responseCategory, {
+          robotName,
+          studentName: replyDisplayName(profileAfter),
+        });
+        responseSource = "response bank";
+      } else if (deterministicIntent.intent === "greeting") {
+        robotReply = responseBankRef.current.select("greeting", {
+          robotName,
+          studentName: replyDisplayName(profileAfter),
+        });
+        responseSource = "response bank";
+        responseCategory = "greeting";
+      } else if (isWeakLocalReply(robotReply, decision)) {
+        robotReply = responseBankRef.current.select("safe_fallback");
+        responseSource = "safe fallback";
+        responseCategory = "safe_fallback";
       }
+    }
 
-      if (
-        shouldRescueLocalReplyWithGemini(
+    if (
+      didNormalizeChatInput(
+        rawInput,
+        clean
+      ) &&
+      !chatKeywordMatch
+    ) {
+      robotReply =
+        `${robotReply} I interpreted your message as: "${clean}".`;
+    }
+
+    const downloadedModelOnly =
+      aiResponseMode ===
+      "local_downloaded_model_only";
+
+    if (downloadedModelOnly) {
+      decision = {
+        emotionId:
+          EMOTION_IDLE_ID,
+        emotionLabel:
+          "Idle",
+        confidence:
+          0.35,
+        reason:
+          "Downloaded-model-only mode is selected, so classic local chat responses are not used.",
+      };
+
+      robotReply =
+        localLlmEnabled
+          ? localLlmRuntime.phase === "ready"
+            ? "I am thinking."
+            : "My downloaded chat model is not ready yet. Please ask a teacher to load it in Teacher Mode."
+          : "Downloaded chat model mode is selected, but the model is turned off in Teacher Mode.";
+      responseSource =
+        "fallback";
+    }
+
+    const exactAnswerContext = {
+      hasExactCustomAnswer:
+        Boolean(keywordMatch) ||
+        Boolean(chatKeywordMatch),
+      hasMemoryAnswer:
+        Boolean(preliminaryMemoryAnswer) ||
+        Boolean(memoryAnswer) ||
+        Boolean(parsed.displayName) ||
+        Boolean(parsed.clarification) ||
+        parsed.memoryItems.length > 0,
+      isSmallTalk,
+      isFacialGreeting: false,
+      isMovementCommand: false,
+    };
+
+    const protectedExactAnswer =
+      hasProtectedExactLocalAnswer(
+        exactAnswerContext
+      );
+
+    let localLlmProducedStrongAnswer = false;
+    let localLlmOutputWasBlocked = false;
+    let localLlmWasAttempted = false;
+    let qwenRequestId: string | undefined;
+    let qwenParseStatus = "not called";
+    let semanticAnalysis: LocalSemanticAnalysis | null = null;
+
+    if (
+      shouldAttemptLocalLlm({
+        mode:
           aiResponseMode,
-          geminiApiKey,
-          Boolean(keywordMatch) ||
-            Boolean(chatKeywordMatch) ||
-            Boolean(preliminaryMemoryAnswer),
-          isSmallTalk,
-          robotReply,
-          decision
-        )
-      ) {
-        setGeminiStatus(
-          "Rescuing weak local reply with Gemini..."
-        );
+        inputAllowed: true,
+        ...exactAnswerContext,
+        hasStrongSocialAnswer,
+        hasStrongEmpathyAnswer,
+        localReplyIsWeak:
+          responseCategory === "safe_fallback" ||
+          (
+            deterministicIntent.confidence < 0.75 &&
+            isWeakLocalReply(robotReply, decision)
+          ),
+        localLlmEnabled,
+        localLlmReady:
+          localLlmRuntime.phase === "ready",
+      })
+    ) {
+      localLlmWasAttempted = true;
 
-        try {
-          const geminiResponse =
-            await askGeminiRobotChat({
-              apiKey:
-                geminiApiKey,
-              model:
-                geminiModel,
-              message:
-                clean,
-              activeProfile:
-                profileAfter ?? profileBefore,
+      try {
+        const promptInput = {
+              robotName,
+              profileFields:
+                localLlmProfileFields(
+                  profileAfter ?? profileBefore
+                ),
+              memoryItems:
+                profileMemoryFacts(
+                  profileAfter ?? profileBefore
+                ),
               recentMessages:
-                messagesWithUser.map((message) => ({
-                  role:
-                    message.role,
-                  text:
-                    message.text,
+                messageSnapshot.map((message) => ({
+                  role: message.role,
+                  text: message.text,
                 })),
-            });
+              studentMessage: clean,
+            };
 
-          decision =
-            emotionDecisionFromGemini(
-              geminiResponse
+        if (!downloadedModelOnly) {
+          const analysis = await localLlmAdapterRef.current?.analyze(
+            buildLocalSemanticMessages({
+              profileFields: promptInput.profileFields,
+              recentMessages: promptInput.recentMessages,
+              studentMessage: clean,
+            })
+          );
+
+          if (analysis) {
+            semanticAnalysis = analysis;
+            qwenRequestId = analysis.requestId;
+            qwenParseStatus = "valid semantic JSON";
+            decision = emotionDecisionFromSemantic(analysis);
+            responseCategory = analysis.needsClarification
+              ? "clarification"
+              : analysis.responseCategory;
+            robotReply = responseBankRef.current.select(responseCategory, {
+              robotName,
+              studentName: replyDisplayName(profileAfter ?? profileBefore),
+              clarificationQuestion: analysis.clarificationQuestion,
+            });
+            responseSource = "local semantic model";
+            localLlmProducedStrongAnswer = analysis.confidence >= 0.55;
+
+            if (!analysis.needsClarification && !parsed.clarification && profileAfter) {
+              const validatedCandidateItems = analysis.candidateProfileFacts
+                .map((candidate) => createMemoryItemFromSemanticCandidate(candidate, clean))
+                .filter((item): item is UserMemoryItem => item !== null);
+              if (validatedCandidateItems.length > 0) {
+                profileAfter = addMemoryItemsToUserProfile(
+                  profileAfter.id,
+                  validatedCandidateItems
+                ) ?? profileAfter;
+              }
+            }
+          }
+        }
+
+        const localResponse = downloadedModelOnly
+          ? await localLlmAdapterRef.current?.generate(buildLocalLlmMessages(promptInput))
+          : undefined;
+
+        if (localResponse) {
+          qwenRequestId = localResponse.requestId;
+          qwenParseStatus = "valid conversational response";
+          const localDecision =
+            emotionDecisionFromLocalLlm(
+              localResponse
             );
 
+          const localOutputSafety =
+            checkChildSafety(
+              localResponse.reply,
+              safetyPolicy
+            );
+
+          const safeLocalOutput =
+            applyGeneratedReplySafety(
+              localResponse.reply,
+              safetyPolicy.safeReply,
+              localOutputSafety.allowed
+            );
+
+          robotReply = safeLocalOutput.reply;
+          localLlmOutputWasBlocked =
+            safeLocalOutput.blocked;
+          responseSource =
+            safeLocalOutput.blocked
+              ? "safety"
+              : "local conversational model";
+
+          if (safeLocalOutput.blocked) {
+            decision = {
+              emotionId: EMOTION_IDLE_ID,
+              emotionLabel: "Idle",
+              confidence: 0.99,
+              reason:
+                `Browser-local reply blocked before display: ${localOutputSafety.reason}`,
+            };
+            setGeminiStatus(
+              "Browser-local response was blocked by child safety and replaced with the safe reply."
+            );
+          } else {
+            decision = localDecision;
+            localLlmProducedStrongAnswer =
+              localResponse.confidence >= 0.5 &&
+              !isWeakLocalReply(
+                localResponse.reply,
+                localDecision
+              );
+            setGeminiStatus(
+              localLlmProducedStrongAnswer
+                ? "Browser-local model answered; Gemini was not needed."
+                : "Browser-local model returned a weak answer."
+            );
+          }
+        } else if (downloadedModelOnly) {
           robotReply =
-            geminiResponse.reply;
+            "I could not get a local model response yet. Please try again in a moment.";
+          responseSource =
+            "fallback";
 
-          usedGemini = true;
+          decision = {
+            emotionId:
+              EMOTION_IDLE_ID,
+            emotionLabel:
+              "Idle",
+            confidence:
+              0.45,
+            reason:
+              "Downloaded-model-only mode did not receive a browser-local response.",
+          };
 
           setGeminiStatus(
-            `Gemini rescued weak local reply: ${geminiResponse.reason}`
-          );
-        } catch (error) {
-          setGeminiStatus(
-            error instanceof Error
-              ? `Gemini rescue failed: ${error.message}`
-              : "Gemini rescue failed."
+            "Browser-local model did not return a response."
           );
         }
+      } catch (error) {
+        qwenParseStatus = error instanceof Error
+          ? `failed: ${error.message}`
+          : "failed";
+        if (downloadedModelOnly) {
+          robotReply =
+            "I had trouble using my downloaded chat model. Please try again in a moment.";
+          responseSource =
+            "fallback";
+
+          decision = {
+            emotionId:
+              EMOTION_IDLE_ID,
+            emotionLabel:
+              "Idle",
+            confidence:
+              0.45,
+            reason:
+              "Downloaded-model-only generation failed before the robot could answer.",
+          };
+        }
+
+        setGeminiStatus(
+          error instanceof Error
+            ? `Browser-local generation failed: ${error.message}`
+            : "Browser-local generation failed."
+        );
       }
+    } else if (
+      aiResponseMode !==
+        "local_keywords_only" &&
+      localLlmEnabled &&
+      localLlmRuntime.phase !== "ready" &&
+      isWeakLocalReply(robotReply, decision) &&
+      !protectedExactAnswer
+    ) {
+      setGeminiStatus(
+        "Local chat model is enabled but not ready. Load it in Teacher Mode to use browser-local responses."
+      );
+    }
+
+    const finalLocalReplyIsWeak =
+      !localLlmOutputWasBlocked &&
+      !(
+        deterministicIntent.confidence >= 0.75 &&
+        responseCategory !== "safe_fallback"
+      ) &&
+      (
+        isWeakLocalReply(
+          robotReply,
+          decision
+        ) ||
+        (
+          localLlmWasAttempted &&
+          !localLlmProducedStrongAnswer
+        )
+      );
+
+    let geminiWasAttempted = false;
+
+    if (
+      shouldAttemptGemini({
+        mode: aiResponseMode,
+        inputAllowed: true,
+        hasApiKey:
+          geminiApiKey.trim().length > 0,
+        hasProtectedExactAnswer:
+          protectedExactAnswer ||
+          localLlmOutputWasBlocked,
+        hasStrongLocalAnswer:
+          hasStrongSocialAnswer ||
+          hasStrongEmpathyAnswer ||
+          localLlmProducedStrongAnswer,
+        finalLocalReplyIsWeak,
+      })
+    ) {
+      geminiWasAttempted = true;
+      setGeminiStatus(
+        aiResponseMode === "rescue_with_gemini"
+          ? "Rescuing the weak local reply with Gemini..."
+          : "Using Gemini after local layers remained weak..."
+      );
+
+      try {
+        const geminiResponse =
+          await askGeminiRobotChat({
+            apiKey:
+              geminiApiKey,
+            model:
+              geminiModel,
+            message:
+              clean,
+            activeProfile:
+              profileAfter ?? profileBefore,
+            recentMessages:
+              messagesWithUser.map((message) => ({
+                role:
+                  message.role,
+                text:
+                  message.text,
+              })),
+          });
+
+        let targetProfile =
+          profileAfter ?? profileBefore;
+
+        const displayName =
+          [parsed.displayName].find((name) =>
+            name
+              ? isPlausibleProfileName(name)
+              : false
+          );
+
+        if (displayName && !replyDisplayName(targetProfile)) {
+          targetProfile =
+            upsertUserProfile(
+              displayName
+            );
+          setActiveUserProfileId(
+            targetProfile.id
+          );
+        } else if (
+          !targetProfile &&
+          activeProfileId
+        ) {
+          targetProfile =
+            getUserProfileByIdFallback(
+              activeProfileId
+            );
+        }
+
+        const geminiMemoryItems =
+          geminiResponse.profileUpdates
+            .map((draft) =>
+              createMemoryItemFromGeminiDraft(
+                draft,
+                clean
+              )
+            )
+            .filter(
+              (
+                item
+              ): item is UserMemoryItem =>
+                item !== null &&
+                parsed.memoryItems.some((deterministicItem) =>
+                  deterministicItem.kind === item.kind &&
+                  normalizeText(deterministicItem.value ?? deterministicItem.target ?? "") ===
+                    normalizeText(item.value ?? item.target ?? "")
+                )
+            );
+
+        if (
+          targetProfile &&
+          geminiMemoryItems.length > 0
+        ) {
+          profileAfter =
+            addMemoryItemsToUserProfile(
+              targetProfile.id,
+              geminiMemoryItems
+            ) ?? targetProfile;
+        } else {
+          profileAfter = targetProfile;
+        }
+
+        decision =
+          emotionDecisionFromGemini(
+            geminiResponse
+          );
+
+        robotReply =
+          geminiResponse.reply;
+        responseSource =
+          "Gemini";
+
+        setGeminiStatus(
+          `Gemini used after local routing: ${geminiResponse.reason}`
+        );
+      } catch (error) {
+        setGeminiStatus(
+          error instanceof Error
+            ? `Gemini fallback failed: ${error.message}`
+            : "Gemini fallback failed."
+        );
+      }
+    }
+
+    if (
+      aiResponseMode === "rescue_with_gemini" &&
+      geminiApiKey.trim().length === 0
+    ) {
+      robotReply = "Full Gemini mode is selected, but the Gemini API key is not configured. Please ask a teacher to add it in Teacher Mode.";
+      responseSource = "technical fallback";
+      responseCategory = "safe_fallback";
+      decision = {
+        emotionId: EMOTION_IDLE_ID,
+        emotionLabel: "Idle",
+        confidence: 0.99,
+        reason: "Full Gemini mode requires a configured API key.",
+      };
     }
 
     const replySafetyResult =
@@ -3761,6 +4694,8 @@ const RobotChatWidget:
     if (!replySafetyResult.allowed) {
       robotReply =
         safetyPolicy.safeReply;
+      responseSource =
+        "safety";
 
       decision = {
         emotionId:
@@ -3776,7 +4711,9 @@ const RobotChatWidget:
 
     const nextMessages:
       ChatMessage[] = [
-        ...messagesWithUser,
+        ...(messagesRef.current.some((message) => message.id === userMessage.id)
+          ? messagesRef.current
+          : [...messagesRef.current, userMessage]),
         {
           id: safeRandomId(),
           role: "robot",
@@ -3790,8 +4727,53 @@ const RobotChatWidget:
     setMessages(
       nextMessages
     );
+    messagesRef.current = nextMessages;
 
-    setIsRobotTyping(false);
+    activeSendCountRef.current = Math.max(0, activeSendCountRef.current - 1);
+    setIsRobotTyping(activeSendCountRef.current > 0);
+
+    const deterministicCandidates = parsed.memoryItems.map(memoryItemAsUserPhrase);
+    const semanticCandidates = semanticAnalysis?.candidateProfileFacts.map(
+      (candidate) => `${candidate.field}: ${candidate.value}`
+    ) ?? [];
+    const acceptedSemanticCandidates = semanticAnalysis?.candidateProfileFacts
+      .filter((candidate) => Boolean(
+        profileAfter &&
+        !semanticAnalysis?.needsClarification &&
+        createMemoryItemFromSemanticCandidate(candidate, clean)
+      ))
+      .map((candidate) => `${candidate.field}: ${candidate.value}`) ?? [];
+    const rejectedSemanticCandidates = semanticAnalysis?.candidateProfileFacts
+      .filter((candidate) => !acceptedSemanticCandidates.includes(`${candidate.field}: ${candidate.value}`))
+      .map((candidate) => `${candidate.field}: ${candidate.value}`) ?? [];
+    const finalIdentityState = identityStateForProfile(profileAfter ?? getActiveUserProfile());
+    if (finalIdentityState === "known_student") setStudentIdentityState("known_student");
+
+    setResponseDebug({
+      source: responseSource,
+      localModelCalled: localLlmWasAttempted,
+      mode: aiResponseModeLabel(aiResponseMode),
+      detectedIntent: semanticAnalysis?.intent ?? deterministicIntent.intent,
+      studentEmotion: semanticAnalysis?.studentEmotion ?? deterministicIntent.studentEmotion,
+      emotionConfidence: semanticAnalysis?.emotionConfidence ?? deterministicIntent.confidence,
+      responseCategory,
+      identityState: finalIdentityState,
+      profileCandidates: [...deterministicCandidates, ...semanticCandidates],
+      acceptedProfileUpdates: [
+        ...deterministicCandidates.filter((_candidate, index) =>
+          profileAfter?.memoryItems.length !== profileBefore?.memoryItems.length && index < parsed.memoryItems.length
+        ),
+        ...acceptedSemanticCandidates,
+      ],
+      rejectedProfileUpdates: rejectedSemanticCandidates,
+      clarificationRequested: Boolean(parsed.clarification || semanticAnalysis?.needsClarification),
+      lightweightClassifierUsed: true,
+      qwenRequestId,
+      qwenParseStatus,
+      geminiCalled: geminiWasAttempted,
+      safetyResult: "safe",
+      unsupportedIntent: understandingResult.unsupportedIntent,
+    });
 
     emitDashboardEmotionPreview(
       decision,
@@ -3902,6 +4884,9 @@ const RobotChatWidget:
 
         if (
           !displayName ||
+          !isPlausibleProfileName(
+            displayName
+          ) ||
           displayName !==
             storedProfile.displayName ||
           detail.displayName !==
@@ -3978,6 +4963,7 @@ const RobotChatWidget:
         setActiveUserProfileId(
           linkedUserProfile.id
         );
+        setStudentIdentityState("known_student");
 
         setMessages((current) => [
           ...current,
@@ -4028,15 +5014,21 @@ const RobotChatWidget:
   }, []);
 
   const handleClearChat = (): void => {
-    setMessages([
+    const knownName = replyDisplayName(getActiveUserProfile());
+    const clearedMessages: ChatMessage[] = [
       {
         id: safeRandomId(),
         role: "robot",
-        text: "Chat cleared. You can keep talking to me.",
+        text: knownName
+          ? `Chat cleared. I'm ready to keep talking, ${knownName}.`
+          : onboardingGreeting(robotName),
         emotionLabel: "Idle",
         createdAt: nowIso(),
       },
-    ]);
+    ];
+    messagesRef.current = clearedMessages;
+    setMessages(clearedMessages);
+    setStudentIdentityState(knownName ? "known_student" : "awaiting_name");
   };
 
   return (
@@ -4113,9 +5105,13 @@ const RobotChatWidget:
         geminiModel={geminiModel}
         geminiStatus={geminiStatus}
         isOpen={showTeacherMode}
+        localLlmEnabled={localLlmEnabled}
+        localLlmModelId={localLlmModelId}
+        localLlmRuntime={localLlmRuntime}
         newTeacherPasscode={
           newTeacherPasscode
         }
+        responseDebug={responseDebug}
         safetyPolicy={safetyPolicy}
         teacherModeStatus={
           teacherModeStatus
@@ -4135,6 +5131,9 @@ const RobotChatWidget:
         }
         onChangeGeminiModel={
           setGeminiModel
+        }
+        onChangeLocalLlmEnabled={
+          setLocalLlmEnabled
         }
         onChangeNewTeacherPasscode={
           setNewTeacherPasscode
@@ -4160,6 +5159,9 @@ const RobotChatWidget:
         onImportRulesText={
           handleImportSafetyRules
         }
+        onLoadLocalLlm={() => {
+          void handleLoadLocalLlm();
+        }}
         onLock={() => {
           setTeacherUnlocked(false);
           setTeacherModeStatus(
@@ -4176,6 +5178,9 @@ const RobotChatWidget:
           );
         }}
         onUnlock={handleTeacherUnlock}
+        onUnloadLocalLlm={
+          handleUnloadLocalLlm
+        }
         onUpdateSafetyPolicy={
           updateSafetyPolicy
         }
@@ -4342,6 +5347,17 @@ const RobotChatWidget:
                 );
 
                 setActiveUserProfileId(null);
+                pendingNameRef.current = null;
+                setStudentIdentityState("awaiting_name");
+                const resetMessages: ChatMessage[] = [{
+                  id: safeRandomId(),
+                  role: "robot",
+                  text: onboardingGreeting(robotName),
+                  emotionLabel: "Happy",
+                  createdAt: nowIso(),
+                }];
+                messagesRef.current = resetMessages;
+                setMessages(resetMessages);
                 refreshProfiles();
               }}
               className="mt-2 w-full rounded border border-red-400 bg-black px-3 py-1 text-xs font-bold text-red-300 transition hover:bg-red-500 hover:text-white"

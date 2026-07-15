@@ -106,12 +106,6 @@ async function loadFaceLandmarker():
             baseOptions: {
               modelAssetPath:
                 FACE_LANDMARKER_MODEL_URL,
-
-              /*
-               * CPU is more predictable across school
-               * computers. We can switch to GPU later if
-               * needed.
-               */
               delegate: "CPU",
             },
 
@@ -216,22 +210,7 @@ function classifyExpressionSignal(
   signal: VisionExpressionSignal;
   confidence: number;
 } {
-  /*
-   * Step 7.1:
-   * Sad and upset are now separated more clearly.
-   *
-   * Sad:
-   * - mouth/lips pulling down or tightening
-   * - some sad eye/brow evidence
-   *
-   * Upset:
-   * - eyebrow-down evidence
-   * - facial tension / squint / pressed mouth
-   *
-   * This prevents sad from stealing every negative face
-   * and makes angry/frustrated eyebrow expressions easier
-   * to detect as upset.
-   */
+
   const strongestScore =
     Math.max(
       scores.smile,
@@ -304,11 +283,6 @@ function classifyExpressionSignal(
     };
   }
 
-  /*
-   * Check upset before sad. If a person lowers their
-   * eyebrows or shows tension, it should not be swallowed
-   * by mild sad-mouth evidence.
-   */
   if (
     upsetPatternDetected ||
     strongUpsetBrowDetected ||
@@ -357,10 +331,6 @@ function extractExpressionScores(
       categories
     );
 
-  /*
-   * MediaPipe blendshape names are approximate visual
-   * features, not psychological emotion labels.
-   */
   const smile =
     getBlendshapeScore(
       scoresByName,
@@ -474,11 +444,6 @@ function extractExpressionScores(
       ]
     );
 
-  /*
-   * Some MediaPipe builds/models do not expose a strong
-   * tongueOut score. We read it if present, but also use
-   * a playful-mouth heuristic so the demo still reacts.
-   */
   const directTongueOut =
     getMaxBlendshapeScore(
       scoresByName,
@@ -501,14 +466,6 @@ function extractExpressionScores(
       tongueOutHeuristic
     );
 
-  /*
-   * Upset is now split into:
-   * - upsetBrow: eyebrow-down/frown-like evidence
-   * - upsetTension: squint, cheek tension, pressed lips
-   *
-   * This makes "angry/frustrated" faces easier to catch
-   * without relying on the same sad mouth cues.
-   */
   const upsetBrow =
     clamp01(
       browDown * 0.75 +
@@ -548,13 +505,6 @@ function extractExpressionScores(
       ]
     );
 
-  /*
-   * Sad is now split into:
-   * - sadMouth: what the user described as lips/mouth pulling down or tightening
-   * - sadEyes: brow/eye cues
-   *
-   * We classify sad only when both groups have evidence.
-   */
   const sadMouth =
     clamp01(
       mouthFrown * 0.44 +

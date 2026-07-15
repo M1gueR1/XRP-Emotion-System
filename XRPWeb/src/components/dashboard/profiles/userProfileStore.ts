@@ -1,3 +1,6 @@
+import { isPlausibleStudentName } from "./plausibleName";
+import { validateProfileMemoryItem } from "./profileFactValidator";
+
 export type UserProfileFact = {
   id: string;
   text: string;
@@ -20,6 +23,9 @@ export type UserMemoryKind =
   | "activity"
   | "study"
   | "work"
+  | "role"
+  | "skill"
+  | "trait"
   | "emotional_trigger"
   | "note";
 
@@ -68,10 +74,16 @@ export type UserProfile = {
 
 export type ParsedProfileText = {
   displayName?: string;
+  clarification?: string;
   facts: string[];
   memoryItems: UserMemoryItem[];
   isQuestion: boolean;
   confidence: number;
+};
+
+export type ParseProfileTextOptions = {
+  allowImplicitName?: boolean;
+  knownDisplayName?: string;
 };
 
 
@@ -80,6 +92,8 @@ const USER_PROFILES_STORAGE_KEY =
 
 const ACTIVE_USER_PROFILE_STORAGE_KEY =
   "xrp-emotion-system:active-user-profile:v1";
+
+let profileSanitizationNotice = "";
 
 export const USER_PROFILE_CHANGED_EVENT =
   "xrp:user-profile-changed";
@@ -193,6 +207,53 @@ function upgradeProfile(
 }
 
 
+function sanitizeStoredProfile(
+  profile: UserProfile
+): { profile: UserProfile; changed: boolean } {
+  if (
+    profile.displayName ===
+      LEGACY_INVALID_PROFILE_NAME ||
+    isPlausibleProfileName(
+      profile.displayName
+    )
+  ) {
+    return {
+      profile,
+      changed: false,
+    };
+  }
+
+  return {
+    profile: {
+      ...profile,
+      displayName:
+        LEGACY_INVALID_PROFILE_NAME,
+      updatedAt: nowIso(),
+    },
+    changed: true,
+  };
+}
+
+
+export function getProfileSanitizationNotice(): string {
+  return profileSanitizationNotice;
+}
+
+
+function persistProfilesWithoutEvent(
+  profiles: UserProfile[]
+): void {
+  if (!hasBrowserStorage()) {
+    return;
+  }
+
+  window.localStorage.setItem(
+    USER_PROFILES_STORAGE_KEY,
+    JSON.stringify(profiles)
+  );
+}
+
+
 function readProfilesFromStorage():
   UserProfile[] {
   if (!hasBrowserStorage()) {
@@ -216,14 +277,33 @@ function readProfilesFromStorage():
       return [];
     }
 
-    return parsed
-      .map(upgradeProfile)
-      .filter(
-        (profile) =>
-          !isBlockedDisplayName(
-            profile.displayName
-          )
+    let changed = false;
+
+    const profiles =
+      parsed.map((profile) => {
+        const sanitized =
+          sanitizeStoredProfile(
+            upgradeProfile(profile)
+          );
+
+        if (sanitized.changed) {
+          profileSanitizationNotice =
+            "A legacy profile contained an invalid student name. The name was removed while the remaining memories were preserved.";
+        }
+
+        changed =
+          changed || sanitized.changed;
+
+        return sanitized.profile;
+      });
+
+    if (changed) {
+      persistProfilesWithoutEvent(
+        profiles
       );
+    }
+
+    return profiles;
   } catch {
     return [];
   }
@@ -410,6 +490,14 @@ export function upsertUserProfile(
     );
   }
 
+  if (
+    !isPlausibleProfileName(cleanName)
+  ) {
+    throw new Error(
+      "Profile name is not valid."
+    );
+  }
+
   const profileId =
     makeUserProfileId(cleanName);
 
@@ -552,8 +640,12 @@ export function addMemoryItemsToUserProfile(
     return null;
   }
 
+  const acceptedMemoryItems = memoryItems.filter(
+    (item) => validateProfileMemoryItem(item).accepted
+  );
+
   const facts =
-    memoryItems
+    acceptedMemoryItems
       .map((item) =>
         factFromMemoryItem(
           item,
@@ -577,7 +669,7 @@ export function addMemoryItemsToUserProfile(
       memoryItems:
         uniqueMemoryItems([
           ...profile.memoryItems,
-          ...memoryItems,
+          ...acceptedMemoryItems,
         ]),
       facts:
         uniqueFacts([
@@ -661,61 +753,30 @@ function isLikelyQuestion(
 }
 
 
-const BLOCKED_NAME_WORDS =
-  new Set([
-    "from",
-    "de",
-    "really",
-    "very",
-    "so",
-    "just",
-    "kinda",
-    "kind",
-    "super",
-    "happy",
-    "sad",
-    "excited",
-    "upset",
-    "angry",
-    "mad",
-    "tired",
-    "stressed",
-    "worried",
-    "nervous",
-    "lonely",
-    "alone",
-    "fine",
-    "good",
-    "bad",
-    "okay",
-    "ok",
-    "ready",
-    "here",
-    "there",
-    "studying",
-    "working",
-    "going",
-    "colombia",
-    "robot",
-    "student",
-  ]);
+const NAME_ALLOWED_REGEX =
+  /^[A-ZÃÃ‰ÃÃ“ÃšÃ‘a-zÃ¡Ã©Ã­Ã³ÃºÃ±][A-ZÃÃ‰ÃÃ“ÃšÃ‘a-zÃ¡Ã©Ã­Ã³ÃºÃ±' -]{1,39}$/;
+
+
+const LEGACY_INVALID_PROFILE_NAME =
+  "Unnamed profile";
 
 
 const EMOTIONAL_SELF_STATE_REGEX =
   /\b(?:i\s*'?m|im|i am|estoy|soy)\s+(?:really\s+|very\s+|so\s+|super\s+|just\s+|kinda\s+|kind of\s+)?(?:sad|happy|excited|upset|angry|mad|tired|stressed|worried|nervous|lonely|alone|fine|good|bad|ok|okay|furioso|triste|feliz|cansado|preocupado)\b/i;
 
 
-function isBlockedDisplayName(
+export function isPlausibleProfileName(
   value: string
 ): boolean {
-  return BLOCKED_NAME_WORDS.has(
-    normalizeMemoryText(value)
-  );
+  // Kept for storage compatibility documentation; validation is centralized.
+  void NAME_ALLOWED_REGEX;
+  return isPlausibleStudentName(value);
 }
 
 
 function extractDisplayName(
-  text: string
+  text: string,
+  allowImplicitName: boolean
 ): string | undefined {
   const strongMatch =
     text.match(
@@ -727,6 +788,11 @@ function extractDisplayName(
       /\b(?:hola\s+soy|hello\s+i\s*'?m|hey\s+i\s*'?m|hi\s+i\s*'?m)\s+([A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ'-]*)\b/i
     );
 
+  const callMeMatch =
+    text.match(
+      /\b(?:you can call me|please call me|call me)\s+([A-Za-z][A-Za-z' -]*)\b/i
+    );
+
   /*
    * Bare "I'm X" is risky because:
    * "I'm really sad" must NOT create a user named "really".
@@ -734,7 +800,7 @@ function extractDisplayName(
    * a self emotional/state sentence.
    */
   const bareMatch =
-    EMOTIONAL_SELF_STATE_REGEX.test(text)
+    !allowImplicitName || EMOTIONAL_SELF_STATE_REGEX.test(text)
       ? null
       : text.match(
           /\b(?:soy|i\s*'?m|im|i am)\s+([A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ'-]*)\b/i
@@ -743,6 +809,7 @@ function extractDisplayName(
   const candidate =
     strongMatch?.[1] ??
     greetingMatch?.[1] ??
+    callMeMatch?.[1] ??
     bareMatch?.[1];
 
   if (!candidate) {
@@ -752,9 +819,7 @@ function extractDisplayName(
   const clean =
     candidate.trim();
 
-  if (
-    isBlockedDisplayName(clean)
-  ) {
+  if (!isPlausibleProfileName(clean)) {
     return undefined;
   }
 
@@ -901,13 +966,85 @@ function addWorkMemory(
   items.push(
     createMemoryItem({
       kind: "work",
-      field: "works_on",
+      field: "occupation",
       value: clean,
       intensity: 0.75,
       sourceText,
       source: "chat",
     })
   );
+}
+
+
+function addStableProfileMemory(
+  items: UserMemoryItem[],
+  kind: "role" | "activity" | "skill" | "trait",
+  field: string,
+  value: string,
+  sourceText: string
+): void {
+  const clean = cleanValue(value).replace(/^(?:a|an|the)\s+/i, "");
+
+  if (!clean || clean.length > 100) {
+    return;
+  }
+
+  items.push(createMemoryItem({
+    kind,
+    field,
+    value: clean,
+    target: kind === "activity" || kind === "skill" ? clean : undefined,
+    intensity: 0.75,
+    sourceText,
+    source: "chat",
+  }));
+}
+
+
+const OCCUPATION_ROLE_REGEX =
+  /\b(?:engineer|developer|programmer|designer|teacher|doctor|nurse|artist|scientist|researcher|manager|technician|coach|lawyer|accountant|student intern|intern)\b/i;
+
+
+function cleanOccupationValue(
+  value: string
+): string {
+  return cleanValue(
+    value.replace(/^(?:a|an|the)\s+/i, "")
+  );
+}
+
+
+function isAmbiguousOccupationOrStudyValue(
+  value: string
+): boolean {
+  const clean =
+    cleanOccupationValue(value);
+
+  return (
+    /\b[a-z]+ing\b/i.test(clean) &&
+    !OCCUPATION_ROLE_REGEX.test(clean)
+  );
+}
+
+
+function ambiguousProfileClarification(
+  text: string
+): string | undefined {
+  const match =
+    text.match(
+      /\b(?:i\s*'?m|im|i am)\s+(?:a|an)\s+([^.,;!?]+)/i
+    );
+
+  if (
+    match?.[1] &&
+    isAmbiguousOccupationOrStudyValue(
+      match[1]
+    )
+  ) {
+    return "Do you mean that you study that subject, or that it is your job?";
+  }
+
+  return undefined;
 }
 
 
@@ -1306,7 +1443,19 @@ export function factFromMemoryItem(
     item.kind === "work" &&
     item.value
   ) {
-    return `${subject} works on ${item.value}`;
+    return `${subject} works as ${item.value}`;
+  }
+
+  if (item.kind === "role" && item.value) {
+    return `${subject} is a ${item.value}`;
+  }
+
+  if (item.kind === "skill" && item.value) {
+    return `${subject} is learning or skilled at ${item.value}`;
+  }
+
+  if (item.kind === "trait" && item.value) {
+    return `${subject} describes themselves as ${item.value}`;
   }
 
   if (
@@ -1356,7 +1505,8 @@ export function factFromMemoryItem(
 
 
 export function parseProfileText(
-  text: string
+  text: string,
+  options: ParseProfileTextOptions = {}
 ): ParsedProfileText {
   const memoryItems:
     UserMemoryItem[] = [];
@@ -1367,7 +1517,11 @@ export function parseProfileText(
   const displayName =
     isQuestion
       ? undefined
-      : extractDisplayName(text);
+      : extractDisplayName(
+          text,
+          options.allowImplicitName ??
+            !options.knownDisplayName
+        );
 
   if (isQuestion) {
     return {
@@ -1381,6 +1535,11 @@ export function parseProfileText(
 
   const normalized =
     text.replace(/\s+/g, " ").trim();
+
+  const clarification =
+    ambiguousProfileClarification(
+      normalized
+    );
 
   collectRegex(
     normalized,
@@ -1452,10 +1611,132 @@ export function parseProfileText(
 
   collectRegex(
     normalized,
-    /\b(?:trabajo en|i work on|i work in|i work at|i am working on|i'm working on|im working on)\s+([^.,;]+)/gi,
+    /\b(?:trabajo en|i work on|i work in|i work at|i work as|i am working on|i'm working on|im working on)\s+([^.,;]+)/gi,
     (value, _index, matched) =>
       addWorkMemory(
         memoryItems,
+        cleanOccupationValue(value),
+        matched
+      )
+  );
+
+  collectRegex(
+    normalized,
+    /\b(?:i\s*'?m|im|i am)\s+(a|an|the)\s+([^.,;]+)/gi,
+    (_value, _index, matched) => {
+      const match =
+        matched.match(
+          /\b(?:i\s*'?m|im|i am)\s+(?:a|an|the)\s+([^.,;]+)/i
+        );
+
+      const occupation =
+        cleanOccupationValue(
+          match?.[1] ?? ""
+        );
+
+      if (
+        occupation &&
+        !isAmbiguousOccupationOrStudyValue(
+          occupation
+        ) &&
+        OCCUPATION_ROLE_REGEX.test(
+          occupation
+        ) &&
+        !/^student$/i.test(occupation)
+      ) {
+        addWorkMemory(
+          memoryItems,
+          occupation,
+          matched
+        );
+      }
+    }
+  );
+
+  collectRegex(
+    normalized,
+    /\b(?:i\s*'?m|im|i am)\s+(?:a|an|the)\s+((?:soccer|football|basketball|baseball|tennis|volleyball)?\s*player|team captain|captain|volunteer|club member|mentor)\b/gi,
+    (value, _index, matched) =>
+      addStableProfileMemory(
+        memoryItems,
+        "role",
+        "role",
+        value,
+        matched
+      )
+  );
+
+  collectRegex(
+    normalized,
+    /\b([^.,;!?]{2,60}?)\s+is\s+my\s+job\b/gi,
+    (value, _index, matched) =>
+      addWorkMemory(
+        memoryItems,
+        value.toLowerCase() === "soccer" ? "soccer player" : value,
+        matched
+      )
+  );
+
+  collectRegex(
+    normalized,
+    /\b(?:i play|i practice|i participate in|i take part in)\s+([^.,;!?]+)/gi,
+    (value, _index, matched) =>
+      addStableProfileMemory(
+        memoryItems,
+        "activity",
+        "activity",
+        value,
+        matched
+      )
+  );
+
+  collectRegex(
+    normalized,
+    /\b(?:i\s*'?m good at|im good at|i am good at)\s+([^.,;!?]+)/gi,
+    (value, _index, matched) =>
+      addStableProfileMemory(
+        memoryItems,
+        "skill",
+        "skill",
+        value,
+        matched
+      )
+  );
+
+  collectRegex(
+    normalized,
+    /\bi know how to program in\s+([A-Za-z0-9+#.-]{1,30})\b/gi,
+    (value, _index, matched) =>
+      addStableProfileMemory(
+        memoryItems,
+        "skill",
+        "skill",
+        `${value} programming`,
+        matched
+      )
+  );
+
+  collectRegex(
+    normalized,
+    /\bi can play (?:the )?([^.,;!?]+)/gi,
+    (value, _index, matched) =>
+      addStableProfileMemory(
+        memoryItems,
+        "skill",
+        "skill",
+        value,
+        matched
+      )
+  );
+
+  collectRegex(
+    normalized,
+    /\b(?:i\s*'?m|im|i am)\s+(?:a\s+)?(organized|patient|creative|kind|curious|responsible|helpful|hardworking)(?:\s+person)?\b/gi,
+    (value, _index, matched) =>
+      addStableProfileMemory(
+        memoryItems,
+        "trait",
+        "trait",
         value,
         matched
       )
@@ -1743,13 +2024,15 @@ export function parseProfileText(
 
   return {
     displayName,
+    clarification,
     facts,
     memoryItems:
       uniqueMemoryItems(memoryItems),
     isQuestion,
     confidence:
       memoryItems.length > 0 ||
-      displayName
+      displayName ||
+      clarification
         ? 0.82
         : 0.35,
   };
@@ -1758,10 +2041,11 @@ export function parseProfileText(
 
 export function learnFromProfileText(
   text: string,
-  fallbackProfileId?: string
+  fallbackProfileId?: string,
+  options: ParseProfileTextOptions = {}
 ): UserProfile | null {
   const parsed =
-    parseProfileText(text);
+    parseProfileText(text, options);
 
   if (parsed.isQuestion) {
     return (

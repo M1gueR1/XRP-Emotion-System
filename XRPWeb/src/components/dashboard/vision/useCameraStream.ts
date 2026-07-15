@@ -24,7 +24,7 @@ export type UseCameraStreamResult = {
   stopCamera: () => void;
 };
 
-
+//hoook para mostrar la camaraaaa
 export function useCameraStream():
   UseCameraStreamResult {
   const videoRef =
@@ -52,6 +52,7 @@ export function useCameraStream():
     setErrorMessage,
   ] = useState("");
 
+  //guardo si es compatible o no lacamara
   const isCameraSupported =
     typeof navigator !== "undefined" &&
     Boolean(
@@ -115,11 +116,6 @@ export function useCameraStream():
         streamRef.current =
           nextStream;
 
-        /*
-         * Set the stream first, then mark the camera ready.
-         * React will render the <video> and the sync effect
-         * below will attach the stream exactly once.
-         */
         setStream(
           nextStream
         );
@@ -157,15 +153,6 @@ export function useCameraStream():
       stopCamera,
     ]);
 
-  /*
-   * IMPORTANT:
-   * This effect must depend on `stream`.
-   *
-   * EmotionWidget re-renders constantly because the robot
-   * face animation updates the sprite frame. If this effect
-   * runs after every render, it keeps assigning srcObject and
-   * calling play(), which can make the camera preview flicker.
-   */
   useEffect(() => {
     const videoElement =
       videoRef.current;

@@ -595,7 +595,9 @@ export function classifyLocalChildSafety(
   const features =
     tokensForClassifier(text);
 
-  if (features.length === 0) {
+  const knownFeatures = features.filter((feature) => MODEL.vocabulary.has(feature));
+
+  if (features.length === 0 || knownFeatures.length === 0) {
     return {
       label: "safe",
       confidence: 1,
@@ -616,7 +618,7 @@ export function classifyLocalChildSafety(
       .map((label) => ({
         label,
         logScore:
-          scoreLabel(label, features),
+          scoreLabel(label, knownFeatures),
       }))
       .sort(
         (left, right) =>

@@ -151,6 +151,9 @@ function normalizeMemoryKind(
     value === "activity" ||
     value === "study" ||
     value === "work" ||
+    value === "role" ||
+    value === "skill" ||
+    value === "trait" ||
     value === "emotional_trigger" ||
     value === "note"
   ) {
@@ -397,7 +400,10 @@ profileUpdates is an array. Each item must use one of:
 - preference: { kind:"preference", target:string, polarity:"like"|"love"|"prefer"|"dislike"|"hate", intensity:number, sourceText:string }
 - activity: { kind:"activity", target:string, intensity:number, sourceText:string }
 - study: { kind:"study", field:"studies", value:string, intensity:number, sourceText:string }
-- work: { kind:"work", field:"works_on", value:string, intensity:number, sourceText:string }
+- work: { kind:"work", field:"occupation", value:string, intensity:number, sourceText:string }
+- role: { kind:"role", field:"role", value:string, intensity:number, sourceText:string }
+- skill: { kind:"skill", field:"skill", value:string, intensity:number, sourceText:string }
+- trait: { kind:"trait", field:"trait", value:string, intensity:number, sourceText:string }
 - emotional_trigger: { kind:"emotional_trigger", target:string, emotion:"happy"|"sad"|"excited"|"upset"|"in_love", intensity:number, sourceText:string }
 - note: { kind:"note", value:string, intensity:number, sourceText:string }
 

@@ -459,6 +459,55 @@ function uniqueTokens(
 }
 
 
+const SEMANTIC_STOP_WORDS =
+  new Set([
+    "a",
+    "an",
+    "and",
+    "are",
+    "about",
+    "because",
+    "cool",
+    "favorite",
+    "fun",
+    "good",
+    "i",
+    "is",
+    "it",
+    "like",
+    "love",
+    "my",
+    "of",
+    "really",
+    "so",
+    "talk",
+    "that",
+    "the",
+    "thing",
+    "things",
+    "to",
+    "use",
+    "very",
+    "want",
+    "with",
+  ]);
+
+
+function meaningfulSemanticTokens(
+  value: string
+): string[] {
+  return uniqueTokens(value)
+    .map((token) =>
+      token.replace(/s$/i, "")
+    )
+    .filter(
+      (token) =>
+        token.length > 1 &&
+        !SEMANTIC_STOP_WORDS.has(token)
+    );
+}
+
+
 function containsSafetyTerm(
   normalizedText: string,
   term: string
@@ -600,6 +649,13 @@ function findFuzzyTerm(
           return false;
         }
 
+        if (
+          normalizedTerm.length <= 6 &&
+          token.slice(0, 2) !== normalizedTerm.slice(0, 2)
+        ) {
+          return false;
+        }
+
         return (
           levenshteinDistance(
             token,
@@ -622,10 +678,14 @@ function jaccardSimilarity(
   right: string
 ): number {
   const leftTokens =
-    new Set(uniqueTokens(left));
+    new Set(
+      meaningfulSemanticTokens(left)
+    );
 
   const rightTokens =
-    new Set(uniqueTokens(right));
+    new Set(
+      meaningfulSemanticTokens(right)
+    );
 
   if (
     leftTokens.size === 0 ||

@@ -46,12 +46,15 @@ async function loadRecognitionModels():
       import("@vladmandic/face-api")
       .then(async (faceApi) => {
         await Promise.all([
+          //identifica donde esta la cara en la camara/video xd
           faceApi.nets.tinyFaceDetector.loadFromUri(
             FACE_API_MODEL_URL
           ),
+          //una vez se identifica donde esta la cara, le pone 68 marcas al rostro para tenerlos de referencia
           faceApi.nets.faceLandmark68TinyNet.loadFromUri(
             FACE_API_MODEL_URL
           ),
+          //convierte la cara en un vector de 128 dimensiones para poder comparar con otras caras
           faceApi.nets.faceRecognitionNet.loadFromUri(
             FACE_API_MODEL_URL
           ),
@@ -148,9 +151,8 @@ export function useFaceIdentityRecognition({
             video.videoHeight > 0
           ) {
             try {
-              const result =
-                await faceApi
-                  .detectSingleFace(
+//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+              const result =  await faceApi.detectSingleFace(
                     video,
                     new faceApi.TinyFaceDetectorOptions({
                       inputSize: 224,
