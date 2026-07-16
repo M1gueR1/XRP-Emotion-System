@@ -34,21 +34,35 @@ import EmotionSpritePreview from
   "./EmotionSpritePreview";
 
 import {
-  downloadRedVisionSheetForTesting,
-} from "./redVisionSheetProcessor";
-
-import {
+  deleteCustomEmotionFromRedVision,
   releaseExistingUsbConnectionForRedVisionUpload,
   uploadCustomEmotionToRedVision,
 } from "./xrpRedVisionUploadService";
 
 import {
+  normalizeCustomEmotionAnimationConfiguration,
+} from "./customEmotionAnimationConfig";
+
+import {
   CUSTOM_EMOTION_FRAME_SIZE_OPTIONS,
-  type CustomEmotionFitMode,
   type CustomEmotionSourceMode,
   type CustomEmotionTargetFrameSize,
   processCustomEmotionImage,
 } from "./customEmotionImageProcessor";
+
+type UploadFeedback = {
+  emotionName: string;
+  tone: "progress" | "success" | "error";
+  message: string;
+  percent?: number;
+};
+
+const SAVED_EMOTION_BORDER_COLORS = [
+  "#fb923c",
+  "#c084fc",
+  "#22d3ee",
+  "#34d399",
+] as const;
 
 const REPEAT_MODE_HELP:
   Record<
@@ -306,13 +320,6 @@ function ManageEmotionsDialog({
   >("single_image");
 
   const [
-    fitMode,
-    setFitMode,
-  ] = useState<
-    CustomEmotionFitMode
-  >("contain");
-
-  const [
     targetFrameSize,
     setTargetFrameSize,
   ] = useState<
@@ -337,7 +344,7 @@ function ManageEmotionsDialog({
   const [
     frameCount,
     setFrameCount,
-  ] = useState(4);
+  ] = useState(1);
 
   const [
     gridRows,
@@ -352,7 +359,7 @@ function ManageEmotionsDialog({
   const [
     defaultFps,
     setDefaultFps,
-  ] = useState(6);
+  ] = useState(1);
 
   const [
     repeatMode,
@@ -360,12 +367,12 @@ function ManageEmotionsDialog({
   ] =
     useState<
       CustomEmotionRepeatMode
-    >("loop");
+    >("once");
 
   const [
     repeatCount,
     setRepeatCount,
-  ] = useState(3);
+  ] = useState(1);
 
   const [
     isSaving,
@@ -380,14 +387,38 @@ function ManageEmotionsDialog({
   );
 
   const [
-    uploadProgressMessage,
-    setUploadProgressMessage,
-  ] = useState("");
+    deletingEmotionName,
+    setDeletingEmotionName,
+  ] = useState<string | null>(null);
+
+  const [uploadFeedback, setUploadFeedback] =
+    useState<UploadFeedback | null>(null);
+
+  const [showDeleteSuccessDialog, setShowDeleteSuccessDialog] =
+    useState(false);
 
   const [
     statusMessage,
     setStatusMessage,
   ] = useState("");
+
+  const animationConfiguration =
+    normalizeCustomEmotionAnimationConfiguration({
+      sourceMode,
+      frameCount,
+      repeatMode,
+      repeatCount,
+    });
+
+  const effectiveFrameCount =
+    animationConfiguration.frameCount;
+  const effectiveRepeatMode =
+    animationConfiguration.repeatMode;
+  const effectiveDefaultFps =
+    sourceMode === "single_image" ? 1 : defaultFps;
+  const isBoardOperationActive =
+    uploadingEmotionName !== null ||
+    deletingEmotionName !== null;
 
   const [
     errorMessage,
@@ -426,10 +457,10 @@ function ManageEmotionsDialog({
   const calculatedFrameWidth =
     (
       sheetWidth > 0 &&
-      frameCount > 0 &&
-      sheetWidth % frameCount === 0
+      effectiveFrameCount > 0 &&
+      sheetWidth % effectiveFrameCount === 0
     )
-      ? sheetWidth / frameCount
+      ? sheetWidth / effectiveFrameCount
       : 0;
 
   const calculatedFrameHeight =
@@ -468,21 +499,19 @@ function ManageEmotionsDialog({
         setSpriteFileName("");
         setSourceImageFile(null);
         setSourceMode("single_image");
-        setFitMode("contain");
         setSheetWidth(0);
         setSheetHeight(0);
 
         setFrameCount(1);
         setGridRows(1);
         setGridColumns(1);
-        setDefaultFps(8);
+        setDefaultFps(1);
 
-        setRepeatMode("loop");
-        setRepeatCount(3);
+        setRepeatMode("once");
+        setRepeatCount(1);
 
         setStatusMessage("");
         setErrorMessage("");
-        setUploadProgressMessage("");
 
         setSoundMode("default");
         setSoundBlob(null);
@@ -508,6 +537,7 @@ function ManageEmotionsDialog({
 
     void refreshEmotionList();
     void resetForm();
+    setUploadFeedback(null);
   }, [
     isOpen,
     refreshEmotionList,
@@ -529,11 +559,11 @@ function ManageEmotionsDialog({
         const processed =
           await processCustomEmotionImage({
             file: sourceImageFile!,
-            frameCount,
+            frameCount: effectiveFrameCount,
             sourceMode,
             gridRows,
             gridColumns,
-            fitMode,
+            fitMode: "contain",
             targetFrameSize,
             background: "transparent",
           });
@@ -577,11 +607,10 @@ function ManageEmotionsDialog({
     };
   }, [
     sourceImageFile,
-    frameCount,
+    effectiveFrameCount,
     sourceMode,
     gridRows,
     gridColumns,
-    fitMode,
     targetFrameSize,
   ]);
 
@@ -794,9 +823,9 @@ function ManageEmotionsDialog({
     }
 
     if (
-      frameCount <= 0 ||
+      effectiveFrameCount <= 0 ||
       !Number.isInteger(
-        frameCount
+        effectiveFrameCount
       )
     ) {
       setErrorMessage(
@@ -808,7 +837,7 @@ function ManageEmotionsDialog({
 
     if (
       sourceMode === "grid_spritesheet" &&
-      gridRows * gridColumns < frameCount
+      gridRows * gridColumns < effectiveFrameCount
     ) {
       setErrorMessage(
         "Grid rows × columns must be greater than or equal to total frames."
@@ -818,7 +847,7 @@ function ManageEmotionsDialog({
     }
 
     if (
-      sheetWidth % frameCount !== 0
+      sheetWidth % effectiveFrameCount !== 0
     ) {
       setErrorMessage(
         "The processed image width must be divisible " +
@@ -874,13 +903,13 @@ function ManageEmotionsDialog({
         frameHeight:
           calculatedFrameHeight,
 
-        frameCount,
-        defaultFps,
+        frameCount: effectiveFrameCount,
+        defaultFps: effectiveDefaultFps,
 
-        repeatMode,
+        repeatMode: effectiveRepeatMode,
 
         repeatCount:
-          repeatMode === "count"
+          effectiveRepeatMode === "count"
             ? repeatCount
             : null,
 
@@ -946,8 +975,6 @@ function ManageEmotionsDialog({
       record.frameCount
     );
 
-    setFitMode("contain");
-
     setSpriteFileName(
       `${record.uniqueName}.png`
     );
@@ -965,7 +992,9 @@ function ManageEmotionsDialog({
     );
 
     setRepeatCount(
-      record.repeatCount ?? 3
+      record.repeatMode === "count"
+        ? record.repeatCount ?? 1
+        : 1
     );
 
     setStatusMessage("");
@@ -990,40 +1019,19 @@ function ManageEmotionsDialog({
   };
 
 
-  const handleDownloadRedVisionSheet =
-    async (
-      record:
-        CustomEmotionRecord
-    ) => {
-      setErrorMessage("");
-      setStatusMessage("");
-
-      try {
-        await downloadRedVisionSheetForTesting(
-          record
-        );
-
-        setStatusMessage(
-          "Red Vision sheet downloaded."
-        );
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : String(error)
-        );
-      }
-    };
-
-
   const handleUploadToXrpRedVision =
     async (
       record:
         CustomEmotionRecord
     ) => {
+      setUploadFeedback({
+        emotionName: record.uniqueName,
+        tone: "progress",
+        message: "Preparing Red Vision upload...",
+        percent: 0,
+      });
       setErrorMessage("");
       setStatusMessage("");
-      setUploadProgressMessage("");
 
       try {
         setUploadingEmotionName(
@@ -1034,22 +1042,36 @@ function ManageEmotionsDialog({
           record,
           {
             onProgress: (progress) => {
-              setUploadProgressMessage(
-                progress.message
-              );
+              setUploadFeedback({
+                emotionName: record.uniqueName,
+                tone: progress.stage === "done"
+                  ? "success"
+                  : "progress",
+                message: progress.message,
+                percent: progress.totalBytes > 0
+                  ? Math.round(
+                      (progress.sentBytes / progress.totalBytes) * 100
+                    )
+                  : 0,
+              });
             },
           }
         );
 
-        setStatusMessage(
-          "Uploaded to XRP Red Vision."
-        );
+        setUploadFeedback({
+          emotionName: record.uniqueName,
+          tone: "success",
+          message: "Uploaded to XRP Red Vision.",
+          percent: 100,
+        });
       } catch (error) {
-        setErrorMessage(
-          error instanceof Error
+        setUploadFeedback({
+          emotionName: record.uniqueName,
+          tone: "error",
+          message: error instanceof Error
             ? error.message
-            : String(error)
-        );
+            : String(error),
+        });
       } finally {
         setUploadingEmotionName(null);
       }
@@ -1060,15 +1082,11 @@ function ManageEmotionsDialog({
     async () => {
       setErrorMessage("");
       setStatusMessage("");
-      setUploadProgressMessage(
-        "Disconnecting XRP USB..."
-      );
+      setStatusMessage("Disconnecting XRP USB...");
 
       try {
         const released =
           await releaseExistingUsbConnectionForRedVisionUpload();
-
-        setUploadProgressMessage("");
 
         setStatusMessage(
           released
@@ -1076,8 +1094,6 @@ function ManageEmotionsDialog({
             : "No active XRP USB connection to disconnect."
         );
       } catch (error) {
-        setUploadProgressMessage("");
-
         setErrorMessage(
           error instanceof Error
             ? error.message
@@ -1093,7 +1109,9 @@ function ManageEmotionsDialog({
   ) => {
     const confirmed =
       window.confirm(
-        `Delete "${record.displayName}"?`
+        `Delete "${record.displayName}" from this browser and ` +
+        "from /emotion_sheets_custom on the XRP? " +
+        "You will be asked to select the XRP USB serial port."
       );
 
     if (!confirmed) {
@@ -1101,6 +1119,21 @@ function ManageEmotionsDialog({
     }
 
     try {
+      setDeletingEmotionName(record.uniqueName);
+      setErrorMessage("");
+      setStatusMessage(
+        "Removing emotion from XRP Red Vision..."
+      );
+
+      await deleteCustomEmotionFromRedVision(
+        record.uniqueName,
+        {
+          onProgress: (message) => {
+            setStatusMessage(message);
+          },
+        }
+      );
+
       await deleteCustomEmotion(
         record.uniqueName
       );
@@ -1114,26 +1147,36 @@ function ManageEmotionsDialog({
         await resetForm();
       }
 
-      setStatusMessage(
-        "Emotion deleted."
-      );
+      setStatusMessage("");
+      setShowDeleteSuccessDialog(true);
+
+      if (
+        uploadFeedback?.emotionName ===
+        record.uniqueName
+      ) {
+        setUploadFeedback(null);
+      }
 
       notifyChanged();
     } catch (error) {
+      setStatusMessage("");
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : String(error)
+        : String(error)
       );
+    } finally {
+      setDeletingEmotionName(null);
     }
   };
 
 
   return (
-    <Dialog
-      isOpen={isOpen}
-      toggleDialog={onClose}
-    >
+    <>
+      <Dialog
+        isOpen={isOpen}
+        toggleDialog={onClose}
+      >
       <div className="flex max-h-[90vh] w-[min(96vw,1100px)] flex-col overflow-hidden rounded-xl bg-white text-slate-900 shadow-2xl dark:bg-slate-950 dark:text-white">
         <header className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-700">
           <div>
@@ -1165,7 +1208,10 @@ function ManageEmotionsDialog({
             onSubmit={handleSave}
             className="flex flex-col gap-5"
           >
-            <section className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+            <section
+              className="rounded-xl border p-4"
+              style={{ borderColor: "#38bdf8" }}
+            >
                 <h2 className="mb-4 font-semibold">
                   Emotion information
                 </h2>
@@ -1213,7 +1259,10 @@ function ManageEmotionsDialog({
               </section>
 
 
-            <section className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+            <section
+              className="rounded-xl border p-4"
+              style={{ borderColor: "#c084fc" }}
+            >
               <h2 className="mb-4 font-semibold">
                 Animation configuration
               </h2>
@@ -1225,10 +1274,18 @@ function ManageEmotionsDialog({
                   <select
                     value={sourceMode}
                     onChange={(event) => {
-                      setSourceMode(
+                      const nextSourceMode =
                         event.target.value as
-                          CustomEmotionSourceMode
-                      );
+                          CustomEmotionSourceMode;
+
+                      setSourceMode(nextSourceMode);
+
+                      if (nextSourceMode === "single_image") {
+                        setFrameCount(1);
+                        setDefaultFps(1);
+                        setRepeatMode("once");
+                        setRepeatCount(1);
+                      }
                     }}
                     className="rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900"
                   >
@@ -1289,29 +1346,6 @@ function ManageEmotionsDialog({
                 </label>
 
                 <label className="flex flex-col gap-1 text-sm">
-                  Fit mode
-
-                  <select
-                    value={fitMode}
-                    onChange={(event) => {
-                      setFitMode(
-                        event.target.value as
-                          CustomEmotionFitMode
-                      );
-                    }}
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900"
-                  >
-                    <option value="contain">
-                      Fit inside frame
-                    </option>
-
-                    <option value="cover">
-                      Fill frame crop
-                    </option>
-                  </select>
-                </label>
-
-                <label className="flex flex-col gap-1 text-sm">
                   Total frames
 
                   <input
@@ -1319,7 +1353,8 @@ function ManageEmotionsDialog({
                     min={MIN_CUSTOM_FRAMES}
                     max={MAX_CUSTOM_FRAMES}
                     step={1}
-                    value={frameCount}
+                    value={effectiveFrameCount}
+                    disabled={sourceMode === "single_image"}
                     onChange={(event) => {
                       setFrameCount(
                         clampInteger(
@@ -1333,7 +1368,7 @@ function ManageEmotionsDialog({
                       );
                     }}
                     required
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900"
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900"
                   />
 
                   <span className="text-xs leading-5 text-slate-500 dark:text-slate-400">
@@ -1398,44 +1433,48 @@ function ManageEmotionsDialog({
                   </>
                 )}
 
-                <label className="flex flex-col gap-1 text-sm">
-                  Default FPS
+                {sourceMode !== "single_image" && (
+                  <label className="flex flex-col gap-1 text-sm">
+                    Default FPS
 
-                  <input
-                    type="number"
-                    min={1}
-                    max={60}
-                    step={1}
-                    value={defaultFps}
-                    onChange={(event) => {
-                      setDefaultFps(
-                        clampInteger(
-                          Number(
-                            event.target.value
-                          ),
-                          1,
-                          60,
-                          8
-                        )
-                      );
-                    }}
-                    required
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900"
-                  />
-                </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={60}
+                      step={1}
+                      value={defaultFps}
+                      onChange={(event) => {
+                        setDefaultFps(
+                          clampInteger(
+                            Number(event.target.value),
+                            1,
+                            60,
+                            8
+                          )
+                        );
+                      }}
+                      required
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900"
+                    />
+                  </label>
+                )}
 
                 <label className="flex flex-col gap-1 text-sm">
                     Repeat mode
 
                     <select
-                      value={repeatMode}
+                      value={effectiveRepeatMode}
+                      disabled={sourceMode === "single_image"}
                       onChange={(event) => {
-                        setRepeatMode(
+                        const nextRepeatMode =
                           event.target.value as
-                            CustomEmotionRepeatMode
-                        );
+                            CustomEmotionRepeatMode;
+                        setRepeatMode(nextRepeatMode);
+                        if (nextRepeatMode === "once") {
+                          setRepeatCount(1);
+                        }
                       }}
-                      className="rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900"
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900"
                     >
                       <option value="once">
                         Once
@@ -1455,33 +1494,35 @@ function ManageEmotionsDialog({
                     </select>
 
                     <span className="text-xs leading-5 text-slate-500 dark:text-slate-400">
-                      {REPEAT_MODE_HELP[repeatMode]}
+                      {REPEAT_MODE_HELP[effectiveRepeatMode]}
                     </span>
                   </label>
 
-                <label className="flex flex-col gap-1 text-sm">
-                  Repeat count
+                {sourceMode !== "single_image" &&
+                  effectiveRepeatMode === "count" && (
+                  <label className="flex flex-col gap-1 text-sm">
+                    Repeat count
 
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    step={1}
-                    value={repeatCount}
-                    disabled={
-                      repeatMode !==
-                      "count"
-                    }
-                    onChange={(event) => {
-                      setRepeatCount(
-                        Number(
-                          event.target.value
-                        )
-                      );
-                    }}
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900"
-                  />
-                </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      step={1}
+                      value={repeatCount}
+                      onChange={(event) => {
+                        setRepeatCount(
+                          clampInteger(
+                            Number(event.target.value),
+                            1,
+                            100,
+                            1
+                          )
+                        );
+                      }}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900"
+                    />
+                  </label>
+                )}
               </div>
 
 
@@ -1502,7 +1543,7 @@ function ManageEmotionsDialog({
                   <div>
                     Source grid:{" "}
                     {gridRows} rows × {gridColumns} columns
-                    · {frameCount} used frames
+                    · {effectiveFrameCount} used frames
                   </div>
                 )}
 
@@ -1522,15 +1563,13 @@ function ManageEmotionsDialog({
             </section>
 
 
-            <section className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+            <section
+              className="rounded-xl border p-4"
+              style={{ borderColor: "#34d399" }}
+            >
               <h2 className="font-semibold">
                 Emotion sound
               </h2>
-
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Audio is stored only in this browser.
-                It is never uploaded to the XRP robot.
-              </p>
 
               <label className="mt-4 flex flex-col gap-1 text-sm">
                 Sound
@@ -1617,14 +1656,6 @@ function ManageEmotionsDialog({
               )}
 
 
-              {soundMode === "default" && (
-                <div className="mt-4 rounded-lg bg-slate-100 p-3 text-sm text-slate-600 dark:bg-slate-900 dark:text-slate-300">
-                  The sound will be generated by XRPWeb
-                  according to the emotion name and ID.
-                </div>
-              )}
-
-
               {soundMode === "none" && (
                 <div className="mt-4 rounded-lg bg-slate-100 p-3 text-sm text-slate-600 dark:bg-slate-900 dark:text-slate-300">
                   No sound will play when this emotion
@@ -1634,7 +1665,10 @@ function ManageEmotionsDialog({
             </section>
 
 
-            <section className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+            <section
+              className="rounded-xl border p-4"
+              style={{ borderColor: "#fbbf24" }}
+            >
               <h2 className="mb-4 font-semibold">
                 Preview
               </h2>
@@ -1648,9 +1682,9 @@ function ManageEmotionsDialog({
                   calculatedFrameHeight
                 }
                 frameCount={
-                  frameCount
+                  effectiveFrameCount
                 }
-                fps={defaultFps}
+                fps={effectiveDefaultFps}
               />
             </section>
 
@@ -1666,13 +1700,6 @@ function ManageEmotionsDialog({
                 {statusMessage}
               </div>
             )}
-
-            {uploadProgressMessage && (
-              <div className="rounded-lg border border-blue-300 bg-blue-50 p-3 text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300">
-                {uploadProgressMessage}
-              </div>
-            )}
-
 
             <div className="flex flex-wrap gap-3">
               <div>
@@ -1708,7 +1735,7 @@ function ManageEmotionsDialog({
                   void handleDisconnectXrpUsb();
                 }}
                 disabled={
-                  uploadingEmotionName !== null
+                  isBoardOperationActive
                 }
                 className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
               >
@@ -1723,12 +1750,19 @@ function ManageEmotionsDialog({
             ) : (
               <div className="flex flex-col gap-4">
                 {customEmotions.map(
-                  (record) => (
+                  (record, recordIndex) => (
                     <article
                       key={
                         record.uniqueName
                       }
-                      className="rounded-xl border border-slate-200 p-4 dark:border-slate-700"
+                      className="rounded-xl border p-4"
+                      style={{
+                        borderColor:
+                          SAVED_EMOTION_BORDER_COLORS[
+                            recordIndex %
+                              SAVED_EMOTION_BORDER_COLORS.length
+                          ],
+                      }}
                     >
                       <StoredEmotionPreview
                         emotion={record}
@@ -1760,27 +1794,12 @@ function ManageEmotionsDialog({
                         <button
                           type="button"
                           onClick={() => {
-                            void handleDownloadRedVisionSheet(
-                              record
-                            );
-                          }}
-                          disabled={
-                            uploadingEmotionName !== null
-                          }
-                          className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          Download Red Vision sheet
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
                             void handleUploadToXrpRedVision(
                               record
                             );
                           }}
                           disabled={
-                            uploadingEmotionName !== null
+                            isBoardOperationActive
                           }
                           className="w-full rounded-lg bg-purple-600 px-3 py-2 text-sm font-semibold text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
@@ -1790,6 +1809,33 @@ function ManageEmotionsDialog({
                             : "Upload to XRP Red Vision"}
                         </button>
 
+                        {uploadFeedback?.emotionName ===
+                          record.uniqueName && (
+                          <div
+                            className={`rounded-lg border p-3 text-sm ${
+                              uploadFeedback.tone === "success"
+                                ? "border-green-300 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
+                                : uploadFeedback.tone === "error"
+                                  ? "border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
+                                  : "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                            }`}
+                            role="status"
+                          >
+                            {uploadFeedback.message}
+
+                            {uploadFeedback.tone === "progress" && (
+                              <div className="mt-2 h-2 overflow-hidden rounded-full bg-blue-200 dark:bg-blue-900">
+                                <div
+                                  className="h-full rounded-full bg-blue-600 transition-[width]"
+                                  style={{
+                                    width: `${uploadFeedback.percent ?? 0}%`,
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         <div className="flex gap-2">
                           <button
                             type="button"
@@ -1798,7 +1844,8 @@ function ManageEmotionsDialog({
                                 record
                               );
                             }}
-                            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800"
+                            disabled={isBoardOperationActive}
+                            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:hover:bg-slate-800"
                           >
                             Edit
                           </button>
@@ -1810,9 +1857,12 @@ function ManageEmotionsDialog({
                                 record
                               );
                             }}
-                            className="rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
+                            disabled={isBoardOperationActive}
+                            className="rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
                           >
-                            Delete
+                            {deletingEmotionName === record.uniqueName
+                              ? "Deleting..."
+                              : "Delete"}
                           </button>
                         </div>
                       </div>
@@ -1835,7 +1885,32 @@ function ManageEmotionsDialog({
           </button>
         </footer>
       </div>
-    </Dialog>
+      </Dialog>
+
+      <Dialog
+        isOpen={showDeleteSuccessDialog}
+        toggleDialog={() => setShowDeleteSuccessDialog(false)}
+      >
+        <div className="grid w-[min(90vw,430px)] gap-4 rounded-xl border border-emerald-400 bg-black p-5 text-white shadow-[0_0_28px_rgba(16,185,129,0.2)]">
+          <div>
+            <h2 className="text-lg font-bold text-emerald-200">
+              Emotion deleted
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-200">
+              Deleted successfully from this browser and XRP Red Vision.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowDeleteSuccessDialog(false)}
+            className="justify-self-end rounded border border-emerald-300 bg-emerald-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-600"
+          >
+            Done
+          </button>
+        </div>
+      </Dialog>
+    </>
   );
 }
 

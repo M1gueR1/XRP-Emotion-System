@@ -81,6 +81,7 @@ import {
 } from "../llm/geminiRobotChatAdapter";
 
 import LocalLlmSettingsPanel from "../llm/LocalLlmSettingsPanel";
+import BootSafetyPanel from "../bootSafety/BootSafetyPanel";
 
 import {
   LocalLlmChatAdapter,
@@ -2777,6 +2778,8 @@ function TeacherModeDialog({
                   Lock Teacher Mode
                 </button>
               </div>
+
+              <BootSafetyPanel />
 
               <div
                 className="grid gap-3 rounded-xl border p-3"

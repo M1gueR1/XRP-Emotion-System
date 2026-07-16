@@ -113,6 +113,42 @@ export class CommandToXRPMgr {
     }
 
     /**
+     * Execute a short, standalone utility script through the existing Raw REPL
+     * connection. Utility callers receive the captured stdout and share the
+     * same BUSY lock as file transfers and normal program execution.
+     */
+    public async executeRawUtility(
+        script: string,
+        completionSentinel: string,
+    ): Promise<string[]> {
+        if (this.BUSY) {
+            throw new Error('The XRP connection is busy. Try again when the current operation finishes.');
+        }
+        if (!this.connection?.isConnected()) {
+            throw new Error('No XRP is connected.');
+        }
+
+        this.BUSY = true;
+        try {
+            const output = await this.connection.writeUtilityCmdRaw(
+                script,
+                true,
+                0,
+                completionSentinel,
+            );
+            return output ?? [];
+        } finally {
+            try {
+                if (this.connection.isConnected()) {
+                    await this.connection.getToNormal(3);
+                }
+            } finally {
+                this.BUSY = false;
+            }
+        }
+    }
+
+    /**
      * setConnection - set the proper connection for the command to work with
      * @param connection 
      */

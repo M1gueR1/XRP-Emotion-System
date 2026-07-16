@@ -14,9 +14,14 @@ class VoiceCommandReceiver:
       V:S -> turn_sad
       V:E -> turn_excited
       V:I -> turn_in_love
+
       V:R -> turn_right
       V:L -> turn_left
-      V:B -> turn_back
+      V:B -> turn_back / move_back
+
+      V:X -> stop
+      V:D -> showtime
+      V:Z -> go_to_sleep
     """
 
     TOKEN_MAP = (
@@ -24,9 +29,15 @@ class VoiceCommandReceiver:
         ("V:S", "turn_sad"),
         ("V:E", "turn_excited"),
         ("V:I", "turn_in_love"),
+
         ("V:R", "turn_right"),
         ("V:L", "turn_left"),
         ("V:B", "turn_back"),
+
+        ("V:X", "stop"),
+        ("V:D", "showtime"),
+        ("V:Z", "go_to_sleep"),
+        ("V:P", "lets_play"),
     )
 
     def __init__(

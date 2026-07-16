@@ -12,6 +12,10 @@ import {
   createRedVisionSheetFromCustomEmotion,
 } from "./redVisionSheetProcessor";
 
+import {
+  buildDeleteCustomEmotionScript,
+} from "./redVisionCustomEmotionDelete";
+
 type WebSerialPort = {
   open: (
     options: {
@@ -63,6 +67,11 @@ export interface UploadCustomEmotionToRedVisionOptions {
   onProgress?: (
     progress: XrpRedVisionUploadProgress
   ) => void;
+}
+
+export interface DeleteCustomEmotionFromRedVisionOptions {
+  baudRate?: number;
+  onProgress?: (message: string) => void;
 }
 
 const DEFAULT_BAUD_RATE = 115200;
@@ -197,6 +206,44 @@ function validateWebSerialAvailable(): void {
         "Use Chrome or Edge on localhost/HTTPS."
     );
   }
+}
+
+async function openSelectedXrpSerialPort(
+  baudRate: number
+): Promise<WebSerialPort> {
+  const navigatorWithSerial =
+    navigator as NavigatorWithSerial;
+
+  const port =
+    await navigatorWithSerial.serial!.requestPort();
+
+  try {
+    await port.open({ baudRate });
+  } catch (error) {
+    const errorName =
+      error instanceof DOMException
+        ? error.name
+        : "";
+
+    if (errorName === "InvalidStateError") {
+      throw new Error(
+        "The XRP USB port is already open. " +
+          "Click Disconnect XRP USB, close other serial tools " +
+          "such as mpremote or Thonny, and try again."
+      );
+    }
+
+    throw error;
+  }
+
+  if (!port.readable || !port.writable) {
+    await port.close();
+    throw new Error(
+      "The selected serial port is not readable/writable."
+    );
+  }
+
+  return port;
 }
 
 async function readUntilPrompt(
@@ -499,6 +546,63 @@ function makeManifestWriteCommand(
   ].join("; ");
 }
 
+export async function deleteCustomEmotionFromRedVision(
+  emotionName: string,
+  options: DeleteCustomEmotionFromRedVisionOptions = {}
+): Promise<void> {
+  validateWebSerialAvailable();
+  const baudRate = options.baudRate ?? DEFAULT_BAUD_RATE;
+  const report = (message: string): void => {
+    options.onProgress?.(message);
+  };
+
+  const deleteScript =
+    buildDeleteCustomEmotionScript(emotionName);
+
+  report("Releasing existing XRP USB connection...");
+  await releaseExistingUsbConnectionForRedVisionUpload();
+
+  report("Select the XRP USB serial port to delete the emotion...");
+  const port = await openSelectedXrpSerialPort(baudRate);
+  const reader = port.readable!.getReader();
+  const writer = port.writable!.getWriter();
+
+  try {
+    report("Entering the XRP MicroPython prompt...");
+    await enterMicroPythonPrompt(writer, reader);
+
+    report("Removing the custom emotion from XRP Red Vision...");
+    const output = await sendCommand(
+      writer,
+      reader,
+      deleteScript,
+      15000
+    );
+
+    if (!output.includes(`DELETE_OK ${emotionName}`)) {
+      throw new Error(
+        "The XRP did not confirm that the custom emotion was deleted."
+      );
+    }
+
+    report("Removed from XRP Red Vision.");
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      /* Ignore cleanup errors. */
+    }
+
+    try {
+      writer.releaseLock();
+    } catch {
+      /* Ignore cleanup errors. */
+    }
+
+    await port.close();
+  }
+}
+
 export async function uploadCustomEmotionToRedVision(
   emotion: CustomEmotionRecord,
   options: UploadCustomEmotionToRedVisionOptions = {}
@@ -587,52 +691,14 @@ export async function uploadCustomEmotionToRedVision(
     totalBytes,
   });
 
-  const navigatorWithSerial =
-    navigator as NavigatorWithSerial;
-
   const port =
-    await navigatorWithSerial.serial!.requestPort();
-
-  try {
-    await port.open({
-      baudRate,
-    });
-  } catch (error) {
-    const errorName =
-      error instanceof DOMException
-        ? error.name
-        : "";
-
-    if (
-      errorName ===
-      "InvalidStateError"
-    ) {
-      throw new Error(
-        "The XRP USB port is already open. " +
-          "Click Disconnect XRP USB, close other serial tools " +
-          "such as mpremote or Thonny, and try again."
-      );
-    }
-
-    throw error;
-  }
-
-  if (
-    !port.readable ||
-    !port.writable
-  ) {
-    await port.close();
-
-    throw new Error(
-      "The selected serial port is not readable/writable."
-    );
-  }
+    await openSelectedXrpSerialPort(baudRate);
 
   const reader =
-    port.readable.getReader();
+    port.readable!.getReader();
 
   const writer =
-    port.writable.getWriter();
+    port.writable!.getWriter();
 
   try {
     report({

@@ -214,8 +214,8 @@ export default class AppMgr {
      * eventOff - turn off an event subscription
      * @param eventName 
      */
-    public eventOff(eventName: EventType) {
-        this._emitter.off(eventName);
+    public eventOff(eventName: EventType, handler?: (...args: any[]) => void) {
+        this._emitter.off(eventName, handler);
     }
 
     /**
