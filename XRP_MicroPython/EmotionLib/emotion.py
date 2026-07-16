@@ -795,6 +795,8 @@ class Emotion:
             )
 
             if can_change:
+                self.stop_motion()
+
                 self._active_name = (
                     self._requested_name
                 )
