@@ -213,6 +213,19 @@ class RedVisionEmotionDisplay:
     operations safely become no-ops.
     """
 
+    _RUNTIME_DISPLAY_INSTANCE = None
+
+    @classmethod
+    def get_runtime_display(cls):
+        """
+        Return the most recently constructed display.
+
+        VoiceCommandReceiver uses this lookup to keep
+        Red Vision animations moving while a Blockly
+        program repeatedly polls for voice commands.
+        """
+        return cls._RUNTIME_DISPLAY_INSTANCE
+
     def __init__(
         self,
         display=None,
@@ -320,6 +333,8 @@ class RedVisionEmotionDisplay:
         )
 
         self._last_error = None
+
+        type(self)._RUNTIME_DISPLAY_INSTANCE = self
 
         if enabled:
             try:
@@ -455,6 +470,7 @@ class RedVisionEmotionDisplay:
             return {}
 
         custom_assets = {}
+        seen_emotion_ids = {}
 
         for (
             emotion_name,
@@ -495,6 +511,36 @@ class RedVisionEmotionDisplay:
                     "loop",
                 )
             )
+
+            emotion_id = raw_entry.get(
+                "emotion_id"
+            )
+
+            if emotion_id is not None:
+                if (
+                    isinstance(emotion_id, bool)
+                    or not isinstance(
+                        emotion_id,
+                        int,
+                    )
+                    or emotion_id < 128
+                    or emotion_id > 255
+                ):
+                    self._log(
+                        "Ignoring invalid custom emotion_id for: "
+                        + clean_name
+                    )
+                    emotion_id = None
+                elif emotion_id in seen_emotion_ids:
+                    self._log(
+                        "Ignoring duplicate custom emotion_id: "
+                        + str(emotion_id)
+                    )
+                    continue
+                else:
+                    seen_emotion_ids[
+                        emotion_id
+                    ] = clean_name
 
             if (
                 isinstance(

@@ -1,31 +1,36 @@
 import AppMgr from "../../../managers/appmgr";
 
 import type {
+  OfficialVoiceCommandAction,
   VoiceCommandAction,
-} from "./useVoiceCommands";
+} from "./voiceCommandTypes";
+
+import {
+  serializeDynamicCustomVoiceCommand,
+  type DynamicCustomVoiceCommand,
+} from "./customVoiceCommandProtocol";
 
 
-type RuntimeVoiceCommandAction =
+export type RuntimeVoiceCommandAction =
   Exclude<
-    VoiceCommandAction,
+    OfficialVoiceCommandAction,
     | "unknown"
     | "turn_idle"
     | "turn_upset"
   >;
 
 
-function isRuntimeVoiceCommandAction(
+export function isRuntimeVoiceCommandAction(
   action: VoiceCommandAction
 ): action is RuntimeVoiceCommandAction {
-  return (
-    action !== "unknown" &&
-    action !== "turn_idle" &&
-    action !== "turn_upset"
+  return Object.prototype.hasOwnProperty.call(
+    VOICE_RUNTIME_COMMANDS,
+    action
   );
 }
 
 
-const VOICE_RUNTIME_COMMANDS: Record<
+export const VOICE_RUNTIME_COMMANDS: Record<
   RuntimeVoiceCommandAction,
   string
 > = {
@@ -49,6 +54,34 @@ const VOICE_RUNTIME_COMMANDS: Record<
 };
 
 
+export function serializeVoiceRuntimeCommand(
+  action: VoiceCommandAction
+): string | null {
+  if (!isRuntimeVoiceCommandAction(action)) {
+    return null;
+  }
+
+  return `${VOICE_RUNTIME_COMMANDS[action]}\n`;
+}
+
+
+function getConnectedXrpConnection() {
+  const appMgr = AppMgr.getInstance();
+  const connection = appMgr.getConnection();
+
+  if (
+    !connection ||
+    !connection.isConnected()
+  ) {
+    throw new Error(
+      "XRP is not connected. Connect the XRP before using voice commands."
+    );
+  }
+
+  return connection;
+}
+
+
 export async function sendVoiceRuntimeCommandToXrp(
   action: VoiceCommandAction
 ): Promise<void> {
@@ -60,26 +93,33 @@ export async function sendVoiceRuntimeCommandToXrp(
     return;
   }
 
-  const appMgr =
-    AppMgr.getInstance();
+  const payload =
+    serializeVoiceRuntimeCommand(action);
 
-  const connection =
-    appMgr.getConnection();
-
-  if (
-    !connection ||
-    !connection.isConnected()
-  ) {
-    throw new Error(
-      "XRP is not connected. Connect the XRP before using voice commands."
-    );
+  if (payload === null) {
+    return;
   }
 
-  const command =
-    VOICE_RUNTIME_COMMANDS[action];
+  const connection =
+    getConnectedXrpConnection();
 
   await connection.writeToDevice(
-    `${command}
-`
+    payload
   );
+}
+
+
+export async function
+sendDynamicCustomVoiceCommandToXrp(
+  command: DynamicCustomVoiceCommand
+): Promise<void> {
+  const payload =
+    serializeDynamicCustomVoiceCommand(
+      command
+    );
+
+  const connection =
+    getConnectedXrpConnection();
+
+  await connection.writeToDevice(payload);
 }

@@ -7,7 +7,15 @@ import {
   initializeEmotionBlocklyCatalog,
 } from "./emotionCatalogBridge";
 
+import {
+  BLOCKLY_VOICE_COMMAND_CATALOG_CHANGED_EVENT,
+  getVoiceCommandDropdownOptions,
+  initializeCustomVoiceCommandCatalog,
+  registerMissingCustomVoiceCommand,
+} from "./customVoiceCommandCatalogBridge";
+
 initializeEmotionBlocklyCatalog();
+initializeCustomVoiceCommandCatalog();
 /*
     This file creates each Block item for Blockly.
     You can set and update the colors here based off the HUE value.
@@ -2374,19 +2382,75 @@ Blockly.Blocks[
 // Add these blocks near the other XRP block definitions.
 // ---------------------------------------------------------
 
-const XRP_VOICE_COMMAND_DROPDOWN = [
-  ["turn right", "turn_right"],
-  ["turn left", "turn_left"],
-  ["move back", "turn_back"],
-  ["stop", "stop"],
-  ["showtime", "showtime"],
-  ["go to sleep", "go_to_sleep"],
-  ["let\'s play", "lets_play"],
-  ["turn happy", "turn_happy"],
-  ["turn sad", "turn_sad"],
-  ["turn excited", "turn_excited"],
-  ["turn in love", "turn_in_love"],
-];
+class XrpVoiceCommandDropdown extends
+  Blockly.FieldDropdown {
+  constructor() {
+    super(function () {
+      return getVoiceCommandDropdownOptions(
+        this.getValue()
+      );
+    });
+  }
+
+  doClassValidation_(newValue) {
+    if (
+      typeof newValue === "string" &&
+      /^custom:\d+$/.test(newValue)
+    ) {
+      registerMissingCustomVoiceCommand(
+        newValue
+      );
+
+      return newValue;
+    }
+
+    return super.doClassValidation_(newValue);
+  }
+
+  refreshCatalog() {
+    const currentValue = this.getValue();
+
+    if (currentValue) {
+      this.doValueUpdate_(currentValue);
+      this.forceRerender();
+    }
+  }
+}
+
+
+if (typeof window !== "undefined") {
+  window.addEventListener(
+    BLOCKLY_VOICE_COMMAND_CATALOG_CHANGED_EVENT,
+    () => {
+      for (
+        const workspace of
+          Blockly.Workspace.getAll()
+      ) {
+        for (
+          const block of
+            workspace.getAllBlocks(false)
+        ) {
+          if (
+            block.type !== "xrp_voice_if_command" &&
+            block.type !== "xrp_voice_command_is"
+          ) {
+            continue;
+          }
+
+          const field =
+            block.getField("COMMAND");
+
+          if (
+            field instanceof
+              XrpVoiceCommandDropdown
+          ) {
+            field.refreshCatalog();
+          }
+        }
+      }
+    }
+  );
+}
 
 
 Blockly.Blocks["xrp_voice_update"] = {
@@ -2410,9 +2474,7 @@ Blockly.Blocks["xrp_voice_if_command"] = {
     this.appendDummyInput()
       .appendField("if voice command is")
       .appendField(
-        new Blockly.FieldDropdown(
-          XRP_VOICE_COMMAND_DROPDOWN
-        ),
+        new XrpVoiceCommandDropdown(),
         "COMMAND"
       );
 
@@ -2436,9 +2498,7 @@ Blockly.Blocks["xrp_voice_command_is"] = {
     this.appendDummyInput()
       .appendField("voice command is")
       .appendField(
-        new Blockly.FieldDropdown(
-          XRP_VOICE_COMMAND_DROPDOWN
-        ),
+        new XrpVoiceCommandDropdown(),
         "COMMAND"
       );
 

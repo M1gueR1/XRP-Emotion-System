@@ -37,8 +37,13 @@ import type {
 } from "../voice/useVoiceCommands";
 
 import {
+  sendDynamicCustomVoiceCommandToXrp,
   sendVoiceRuntimeCommandToXrp,
 } from "../voice/voiceCommandRobotService";
+
+import {
+  dispatchCustomVoiceCommand,
+} from "../voice/customVoiceCommandDispatcher";
 
 import type {
   EmotionData,
@@ -82,6 +87,7 @@ const DASHBOARD_FPS_OVERRIDES: Record<
 > = {
   [DASHBOARD_IDLE_EMOTION_ID]: 55,
   [DASHBOARD_HAPPY_EMOTION_ID]: 25,
+  [VOICE_EXCITED_EMOTION_ID]: 55,
   [DASHBOARD_SAD_EMOTION_ID]: 20,
 };
 
@@ -971,6 +977,31 @@ const repeatCount =
         "[voice-panel] command:",
         action
       );
+
+      if (result?.customCommand) {
+        const customCommand =
+          result.customCommand;
+
+        await dispatchCustomVoiceCommand(
+          customCommand,
+          {
+            previewEmotion: (emotionId) => {
+              applyDashboardVoiceEmotion(
+                emotionId
+              );
+
+              void playRepeatedVoiceEmotionSound(
+                emotionId,
+                1
+              );
+            },
+            sendCommand:
+              sendDynamicCustomVoiceCommandToXrp,
+          }
+        );
+
+        return;
+      }
 
       if (action === "turn_idle") {
         await handleEmotionVoiceCommand(

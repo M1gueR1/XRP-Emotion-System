@@ -19,16 +19,16 @@ import {
 
 import {
   CUSTOM_EMOTION_KEYWORDS_CHANGED_EVENT,
-  CUSTOM_EMOTION_OPTIONS,
   deleteCustomEmotionKeywordRule,
   findMatchingCustomEmotionKeyword,
   getCustomEmotionKeywordRules,
-  getEmotionOptionByKey,
   toggleCustomEmotionKeywordRule,
   upsertCustomEmotionKeywordRule,
-  type CustomEmotionKey,
   type CustomEmotionKeywordRule,
 } from "../keywords/customEmotionKeywordStore";
+
+import useVoiceKeywordEmotionCatalog from
+  "../keywords/useVoiceKeywordEmotionCatalog";
 
 
 const panelClass =
@@ -56,11 +56,9 @@ function emitDashboardEmotionPreview(
           source:
             "custom_emotion_keyword",
           emotionId:
-            rule.emotionId,
+            rule.targetEmotionId,
           emotionLabel:
-            getEmotionOptionByKey(
-              rule.emotionKey
-            ).label,
+            rule.targetEmotionDisplayName,
           signal:
             rule.phrase,
           confidence:
@@ -92,11 +90,12 @@ const CustomEmotionKeywordsWidget:
   ] = useState("");
 
   const [
-    emotionKey,
-    setEmotionKey,
-  ] = useState<CustomEmotionKey>(
-    "happy"
-  );
+    selectedEmotionId,
+    setSelectedEmotionId,
+  ] = useState(1);
+
+  const { targets } =
+    useVoiceKeywordEmotionCatalog();
 
   const [
     priority,
@@ -174,21 +173,45 @@ const CustomEmotionKeywordsWidget:
       return;
     }
 
-    const created =
-      upsertCustomEmotionKeywordRule({
-        phrase: clean,
-        emotionKey,
-        priority,
-        enabled: true,
-      });
+    const targetEmotion = targets.find(
+      (target) =>
+        target.emotionId ===
+        selectedEmotionId
+    );
+
+    if (!targetEmotion) {
+      setStatusMessage(
+        "Select a valid emotion."
+      );
+      return;
+    }
+
+    let created: CustomEmotionKeywordRule;
+
+    try {
+      created =
+        upsertCustomEmotionKeywordRule({
+          phrase: clean,
+          targetEmotion,
+          priority,
+          enabled: true,
+          automaticallyPlayEmotion: true,
+          exposeInBlockly: true,
+        });
+    } catch (error) {
+      setStatusMessage(
+        error instanceof Error
+          ? error.message
+          : String(error)
+      );
+      return;
+    }
 
     setPhrase("");
 
     setStatusMessage(
       `Saved "${created.phrase}" -> ${
-        getEmotionOptionByKey(
-          created.emotionKey
-        ).label
+        created.targetEmotionDisplayName
       }.`
     );
   };
@@ -206,6 +229,13 @@ const CustomEmotionKeywordsWidget:
       return;
     }
 
+    if (match.rule.targetMissing) {
+      setStatusMessage(
+        `Target missing: ${match.rule.targetEmotionDisplayName}. Select another emotion to reactivate this command.`
+      );
+      return;
+    }
+
     emitDashboardEmotionPreview(
       match.rule,
       testText
@@ -213,9 +243,7 @@ const CustomEmotionKeywordsWidget:
 
     setStatusMessage(
       `Matched "${match.rule.phrase}" -> ${
-        getEmotionOptionByKey(
-          match.rule.emotionKey
-        ).label
+        match.rule.targetEmotionDisplayName
       }.`
     );
   };
@@ -272,24 +300,51 @@ const CustomEmotionKeywordsWidget:
 
             <div className="grid grid-cols-2 gap-2">
               <select
-                value={emotionKey}
+                value={selectedEmotionId}
                 onChange={(event) =>
-                  setEmotionKey(
-                    event.target.value as CustomEmotionKey
+                  setSelectedEmotionId(
+                    Number(event.target.value)
                   )
                 }
                 className={`${inputClass} w-full`}
               >
-                {CUSTOM_EMOTION_OPTIONS.map(
-                  (option) => (
+                <optgroup label="Official emotions">
+                  {targets
+                    .filter(
+                      (target) =>
+                        target.source === "official"
+                    )
+                    .map((option) => (
                     <option
-                      key={option.key}
-                      value={option.key}
+                      key={`official-${option.emotionId}`}
+                      value={option.emotionId}
                       className="bg-black text-white"
                     >
-                      {option.label}
+                      {option.displayName}
                     </option>
-                  )
+                    ))}
+                </optgroup>
+
+                {targets.some(
+                  (target) =>
+                    target.source === "custom"
+                ) && (
+                  <optgroup label="Custom emotions">
+                    {targets
+                      .filter(
+                        (target) =>
+                          target.source === "custom"
+                      )
+                      .map((option) => (
+                        <option
+                          key={`custom-${option.emotionId}`}
+                          value={option.emotionId}
+                          className="bg-black text-white"
+                        >
+                          {option.displayName} ★
+                        </option>
+                      ))}
+                  </optgroup>
                 )}
               </select>
 
@@ -357,9 +412,9 @@ const CustomEmotionKeywordsWidget:
                       </div>
 
                       <div className="mt-1 text-[11px] text-zinc-300">
-                        {getEmotionOptionByKey(
-                          rule.emotionKey
-                        ).label}{" "}
+                        {rule.targetMissing
+                          ? `Target missing: ${rule.targetEmotionDisplayName}`
+                          : rule.targetEmotionDisplayName}{" "}
                         · priority {rule.priority}
                       </div>
                     </div>
@@ -423,9 +478,7 @@ const CustomEmotionKeywordsWidget:
 
                 <div className="mt-1 font-bold text-white">
                   {matchedRule.rule.phrase} →{" "}
-                  {getEmotionOptionByKey(
-                    matchedRule.rule.emotionKey
-                  ).label}
+                  {matchedRule.rule.targetEmotionDisplayName}
                 </div>
               </>
             ) : (

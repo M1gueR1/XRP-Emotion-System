@@ -5,20 +5,21 @@ import React, {
 
 import {
   FaCheck,
+  FaEdit,
   FaTrash,
 } from "react-icons/fa";
 
 import {
   CUSTOM_EMOTION_KEYWORDS_CHANGED_EVENT,
-  CUSTOM_EMOTION_OPTIONS,
   deleteCustomEmotionKeywordRule,
   getCustomEmotionKeywordRules,
-  getEmotionOptionByKey,
   toggleCustomEmotionKeywordRule,
   upsertCustomEmotionKeywordRule,
-  type CustomEmotionKey,
   type CustomEmotionKeywordRule,
 } from "../keywords/customEmotionKeywordStore";
+
+import useVoiceKeywordEmotionCatalog from
+  "../keywords/useVoiceKeywordEmotionCatalog";
 
 import {
   upsertChatKeywordRule,
@@ -60,11 +61,22 @@ const EmotionKeywordRulesPanel:
   ] = useState("");
 
   const [
-    emotionKey,
-    setEmotionKey,
-  ] = useState<CustomEmotionKey>(
-    "happy"
-  );
+    selectedEmotionId,
+    setSelectedEmotionId,
+  ] = useState(1);
+
+  const [
+    exposeInBlockly,
+    setExposeInBlockly,
+  ] = useState(true);
+
+  const [
+    editingRuleId,
+    setEditingRuleId,
+  ] = useState<string | null>(null);
+
+  const { targets } =
+    useVoiceKeywordEmotionCatalog();
 
   const [
     addToChatBot,
@@ -167,19 +179,56 @@ const EmotionKeywordRulesPanel:
       }
     }
 
-    const saved =
-      upsertCustomEmotionKeywordRule({
-        phrase: clean,
-        emotionKey,
-        priority: VOICE_KEYWORD_PRIORITY,
-        enabled: true,
-      });
+    const targetEmotion = targets.find(
+      (target) =>
+        target.emotionId ===
+        selectedEmotionId
+    );
+
+    if (!targetEmotion) {
+      setStatusMessage(
+        "Select a valid emotion."
+      );
+      return;
+    }
+
+    if (
+      addToChatBot &&
+      targetEmotion.source === "custom"
+    ) {
+      setStatusMessage(
+        "Robot Chat keywords currently use official emotions. Turn off 'Also add to ChatBot' to use this custom voice emotion."
+      );
+      return;
+    }
+
+    let saved: CustomEmotionKeywordRule;
+
+    try {
+      saved =
+        upsertCustomEmotionKeywordRule({
+          id: editingRuleId ?? undefined,
+          phrase: clean,
+          targetEmotion,
+          priority: VOICE_KEYWORD_PRIORITY,
+          enabled: true,
+          automaticallyPlayEmotion: true,
+          exposeInBlockly,
+        });
+    } catch (error) {
+      setStatusMessage(
+        error instanceof Error
+          ? error.message
+          : String(error)
+      );
+      return;
+    }
 
     if (addToChatBot) {
       upsertChatKeywordRule({
         phrase: clean,
         emotionKey:
-          emotionKey as ChatKeywordEmotionKey,
+          targetEmotion.uniqueName as ChatKeywordEmotionKey,
         reply: chatBotReply,
         priority: CHAT_KEYWORD_PRIORITY,
         enabled: true,
@@ -188,16 +237,32 @@ const EmotionKeywordRulesPanel:
 
     setPhrase("");
     setChatBotReply("");
+    setEditingRuleId(null);
+    setExposeInBlockly(true);
     refreshRules();
 
     setStatusMessage(
       addToChatBot
         ? `Saved voice keyword "${saved.phrase}" and added it to ChatBot.`
-        : `Saved voice keyword "${saved.phrase}" -> ${
-        getEmotionOptionByKey(
-          saved.emotionKey
-        ).label
-      }.`
+        : `Saved voice keyword "${saved.phrase}" -> ${saved.targetEmotionDisplayName}.`
+    );
+  };
+
+  const beginEditing = (
+    rule: CustomEmotionKeywordRule
+  ): void => {
+    setEditingRuleId(rule.id);
+    setPhrase(rule.phrase);
+    setSelectedEmotionId(
+      rule.targetEmotionId
+    );
+    setExposeInBlockly(
+      rule.exposeInBlockly
+    );
+    setAddToChatBot(false);
+    setChatBotReply("");
+    setStatusMessage(
+      `Editing command ${rule.commandKey}. Its ID will stay unchanged.`
     );
   };
 
@@ -232,27 +297,78 @@ const EmotionKeywordRulesPanel:
           </label>
 
           <select
-            value={emotionKey}
+            value={selectedEmotionId}
             onChange={(event) =>
-              setEmotionKey(
-                event.target.value as CustomEmotionKey
+              setSelectedEmotionId(
+                Number(event.target.value)
               )
             }
             className={`${inputClass} w-full`}
           >
-            {CUSTOM_EMOTION_OPTIONS.map(
-              (option) => (
+            <optgroup label="Official emotions">
+              {targets
+                .filter(
+                  (target) =>
+                    target.source === "official"
+                )
+                .map((option) => (
                 <option
-                  key={option.key}
-                  value={option.key}
+                  key={`official-${option.emotionId}`}
+                  value={option.emotionId}
                   className="bg-black text-white"
                 >
-                  {option.label}
+                  {option.displayName}
                 </option>
-              )
+                ))}
+            </optgroup>
+
+            {targets.some(
+              (target) =>
+                target.source === "custom"
+            ) && (
+              <optgroup label="Custom emotions">
+                {targets
+                  .filter(
+                    (target) =>
+                      target.source === "custom"
+                  )
+                  .map((option) => (
+                    <option
+                      key={`custom-${option.emotionId}`}
+                      value={option.emotionId}
+                      className="bg-black text-white"
+                    >
+                      {option.displayName} ★
+                    </option>
+                  ))}
+              </optgroup>
             )}
           </select>
         </div>
+
+        <label className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-black px-3 py-2 text-xs font-bold text-white">
+          <input
+            type="checkbox"
+            checked
+            disabled
+            className="h-4 w-4 accent-white"
+          />
+          Automatically play this emotion
+        </label>
+
+        <label className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-black px-3 py-2 text-xs font-bold text-white">
+          <input
+            type="checkbox"
+            checked={exposeInBlockly}
+            onChange={(event) =>
+              setExposeInBlockly(
+                event.target.checked
+              )
+            }
+            className="h-4 w-4 accent-white"
+          />
+          Expose as Blockly voice command
+        </label>
 
         <label className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-bold text-white">
           <input
@@ -293,8 +409,25 @@ const EmotionKeywordRulesPanel:
           className={`${buttonClass} flex w-full items-center justify-center gap-2`}
         >
           <FaCheck size={10} />
-          Add voice keyword
+          {editingRuleId
+            ? "Save voice keyword"
+            : "Add voice keyword"}
         </button>
+
+        {editingRuleId && (
+          <button
+            type="button"
+            onClick={() => {
+              setEditingRuleId(null);
+              setPhrase("");
+              setExposeInBlockly(true);
+              setStatusMessage("");
+            }}
+            className={buttonClass}
+          >
+            Cancel edit
+          </button>
+        )}
       </div>
 
       <div className="mt-4">
@@ -333,12 +466,21 @@ const EmotionKeywordRulesPanel:
                       Emotion
                     </div>
                     <div>
-                      {
-                        getEmotionOptionByKey(
-                          rule.emotionKey
-                        ).label
-                      }
+                      {rule.targetMissing
+                        ? `Target missing: ${rule.targetEmotionDisplayName}`
+                        : `${rule.targetEmotionDisplayName}${
+                            rule.targetEmotionSource === "custom"
+                              ? " ★"
+                              : ""
+                          }`}
                     </div>
+                  </div>
+
+                  <div className="text-[10px] text-zinc-400">
+                    Command {rule.commandKey}
+                    {rule.exposeInBlockly
+                      ? " · Blockly"
+                      : " · Hidden from Blockly"}
                   </div>
 
                   <div>
@@ -351,7 +493,20 @@ const EmotionKeywordRulesPanel:
                   </div>
                 </div>
 
-                <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      beginEditing(rule)
+                    }
+                    className="rounded border border-blue-300 bg-black px-2 py-1 text-[10px] font-bold text-blue-200 transition hover:bg-blue-500 hover:text-white"
+                  >
+                    <span className="inline-flex items-center justify-center gap-1">
+                      <FaEdit size={9} />
+                      Edit
+                    </span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() =>

@@ -12,6 +12,7 @@ class Emotion:
     """
 
     _DEFAULT_EMOTION_INSTANCE = None
+    _RUNTIME_EMOTION_INSTANCE = None
 
     STATUS_IDLE = 0
     STATUS_PLAYING = 1
@@ -26,12 +27,24 @@ class Emotion:
 
         return cls._DEFAULT_EMOTION_INSTANCE
 
+    @classmethod
+    def get_runtime_emotion(cls):
+        """
+        Return the most recently constructed Emotion runtime.
+
+        VoiceCommandReceiver uses this non-creating lookup for
+        V2 custom commands. The legacy default singleton behavior
+        remains unchanged.
+        """
+        return cls._RUNTIME_EMOTION_INSTANCE
+
     def __init__(
         self,
         publisher=None,
         min_time_before_switch_ms=500,
     ):
         self._publisher = None
+        type(self)._RUNTIME_EMOTION_INSTANCE = self
         self._motion_controller = None
         self._motion_configs = {}
         self._drive_override_active = False
@@ -390,6 +403,28 @@ class Emotion:
         return tuple(
             self._definitions.keys()
         )
+
+    def get_emotion_name_by_id(
+        self,
+        emotion_id,
+    ):
+        emotion_id = (
+            self._validate_non_negative_int(
+                "emotion_id",
+                emotion_id,
+            )
+        )
+
+        for emotion_name, config in (
+            self._emotions.items()
+        ):
+            if (
+                config["emotionId"]
+                == emotion_id
+            ):
+                return emotion_name
+
+        return None
 
     def set_publisher(
         self,

@@ -17,6 +17,10 @@ import {
 } from "./customEmotionEvents";
 
 import {
+  markCustomEmotionKeywordTargetMissing,
+} from "../keywords/customEmotionKeywordStore";
+
+import {
   createEmotionSpriteUrl,
   deleteCustomEmotion,
   findNextCustomEmotionId,
@@ -1136,6 +1140,10 @@ function ManageEmotionsDialog({
 
       await deleteCustomEmotion(
         record.uniqueName
+      );
+
+      markCustomEmotionKeywordTargetMissing(
+        record.emotionId
       );
 
       await refreshEmotionList();

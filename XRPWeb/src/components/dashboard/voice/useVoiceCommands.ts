@@ -5,6 +5,7 @@ import {
 } from "react";
 
 import {
+  classifyVoiceCommand,
   isRepeatableEmotionAction,
 } from "./emotionIntentEngine";
 
@@ -19,7 +20,6 @@ import {
 
 import {
   findMatchingCustomEmotionKeyword,
-  getEmotionOptionByKey,
   type CustomEmotionKeywordMatch,
 } from "../keywords/customEmotionKeywordStore";
   
@@ -135,51 +135,15 @@ function getSpeechRecognitionConstructor():
 }
 
 
-function actionForCustomKeyword(
-  emotionKey: string
-): VoiceCommandAction {
-  switch (emotionKey) {
-    case "idle":
-      return "turn_idle";
-
-    case "happy":
-      return "turn_happy";
-
-    case "sad":
-      return "turn_sad";
-
-    case "excited":
-      return "turn_excited";
-
-    case "in_love":
-      return "turn_in_love";
-
-    case "upset":
-      return "turn_upset";
-
-    default:
-      return "unknown";
-  }
-}
-
-
-function createCustomVoiceKeywordResult(
+export function createCustomVoiceKeywordResult(
   transcript: string,
   match: CustomEmotionKeywordMatch
 ): VoiceCommandResult {
-  const emotionOption =
-    getEmotionOptionByKey(
-      match.rule.emotionKey
-    );
-
   return {
     transcript:
       transcript.trim(),
 
-    action:
-      actionForCustomKeyword(
-        match.rule.emotionKey
-      ),
+    action: match.rule.commandKey,
 
     confidenceLabel:
       `Custom voice keyword matched "${match.rule.phrase}".`,
@@ -187,14 +151,13 @@ function createCustomVoiceKeywordResult(
     repeatCount:
       1,
 
-    source:
-      "custom_voice_keyword" as VoiceCommandResult["source"],
+    source: "custom_voice_keyword",
 
     matchedRuleId:
       `custom_voice_keyword.${match.rule.id}`,
 
     intentLabel:
-      emotionOption.label,
+      match.rule.targetEmotionDisplayName,
 
     intentCategory:
       "emotion",
@@ -209,10 +172,28 @@ function createCustomVoiceKeywordResult(
       ),
 
     contextReason:
-      `The spoken phrase matched the custom voice keyword "${match.rule.phrase}", so the robot selected ${emotionOption.label}.`,
+      `The spoken phrase matched the custom voice keyword "${match.rule.phrase}", so the robot selected ${match.rule.targetEmotionDisplayName}.`,
 
     decisionReason:
       `Custom voice keyword "${match.rule.phrase}" has priority over the default voice intent engine.`,
+
+    customCommand: {
+      commandId: match.rule.commandId,
+      commandKey: match.rule.commandKey,
+      phrase: match.rule.phrase,
+      automaticallyPlayEmotion:
+        match.rule.automaticallyPlayEmotion,
+      targetEmotionId:
+        match.rule.targetEmotionId,
+      targetEmotionUniqueName:
+        match.rule.targetEmotionUniqueName,
+      targetEmotionDisplayName:
+        match.rule.targetEmotionDisplayName,
+      targetEmotionSource:
+        match.rule.targetEmotionSource,
+      targetMissing:
+        match.rule.targetMissing,
+    },
   };
 }
 
@@ -363,12 +344,23 @@ export function useVoiceCommands(
          * - Robot immediately selects Excited without needing
          *   semantic ML or hardcoded intent rules.
          */
-        const customVoiceKeywordMatch =
-          findMatchingCustomEmotionKeyword(
+        const directResult =
+          classifyVoiceCommand(
             trimmedTranscript
           );
 
-        if (customVoiceKeywordMatch) {
+        const customVoiceKeywordMatch =
+          directResult.intentCategory === "safety"
+            ? null
+            : findMatchingCustomEmotionKeyword(
+                trimmedTranscript
+              );
+
+        if (
+          directResult.intentCategory === "safety"
+        ) {
+          result = directResult;
+        } else if (customVoiceKeywordMatch) {
           result =
             createCustomVoiceKeywordResult(
               trimmedTranscript,

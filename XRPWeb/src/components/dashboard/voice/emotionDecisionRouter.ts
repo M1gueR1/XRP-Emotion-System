@@ -14,6 +14,8 @@ type CandidateSourceWeight =
 
 const SOURCE_WEIGHTS:
   CandidateSourceWeight = {
+    custom_voice_keyword: 0,
+
     /*
      * Direct intent_engine results are usually returned
      * before the router. This value is here for safety.

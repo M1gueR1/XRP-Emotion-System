@@ -71,7 +71,6 @@ import type {
 
 import {
   findMatchingCustomEmotionKeyword,
-  getEmotionOptionByKey,
 } from "../keywords/customEmotionKeywordStore";
 
 import {
@@ -4018,10 +4017,15 @@ const RobotChatWidget:
         knownDisplayName: existingName,
       });
 
-    const keywordMatch =
+    const keywordMatchCandidate =
       findMatchingCustomEmotionKeyword(
         clean
       );
+
+    const keywordMatch =
+      keywordMatchCandidate?.rule.targetMissing
+        ? null
+        : keywordMatchCandidate;
 
     const chatKeywordMatch =
       findMatchingChatKeyword(
@@ -4154,11 +4158,9 @@ const RobotChatWidget:
         : keywordMatch
           ? {
               emotionId:
-                keywordMatch.rule.emotionId,
+                keywordMatch.rule.targetEmotionId,
               emotionLabel:
-                getEmotionOptionByKey(
-                  keywordMatch.rule.emotionKey
-                ).label,
+                keywordMatch.rule.targetEmotionDisplayName,
               confidence:
                 keywordMatch.rule.priority / 100,
               reason:

@@ -675,6 +675,13 @@ function emitRobotChatVoiceInput(
 function actionLabel(
   action: string | null
 ): string {
+  if (action?.startsWith("custom:")) {
+    return (
+      "Custom command #" +
+      action.slice("custom:".length)
+    );
+  }
+
   switch (action) {
     case "turn_right":
       return "Turn right";

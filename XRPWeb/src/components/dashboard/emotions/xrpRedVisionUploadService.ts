@@ -515,19 +515,27 @@ function makeManifestReadScript(): string {
   ].join("\n");
 }
 
-function makeManifestEntryCommand(
+export function makeManifestEntryCommand(
   emotionName: string,
+  emotionId: number,
   frameCount: number,
   defaultFps: number,
-  repeatMode: string
+  repeatMode: string,
+  repeatCount: number | null
 ): string {
+  const pythonRepeatCount =
+    repeatCount === null
+      ? "None"
+      : String(repeatCount);
+
   return (
-    `manifest[${pythonStringLiteral(emotionName)}] = ` +
-    JSON.stringify({
-      frame_count: frameCount,
-      default_fps: defaultFps,
-      repeat_mode: repeatMode,
-    })
+    `manifest[${pythonStringLiteral(emotionName)}] = {` +
+    `"emotion_id": ${emotionId}, ` +
+    `"frame_count": ${frameCount}, ` +
+    `"default_fps": ${defaultFps}, ` +
+    `"repeat_mode": ${pythonStringLiteral(repeatMode)}, ` +
+    `"repeat_count": ${pythonRepeatCount}` +
+    "}"
   );
 }
 
@@ -831,9 +839,11 @@ export async function uploadCustomEmotionToRedVision(
       reader,
       makeManifestEntryCommand(
         emotionName,
+        emotion.emotionId,
         redVisionSheet.frameCount,
         defaultFps,
-        redVisionSheet.repeatMode
+        redVisionSheet.repeatMode,
+        emotion.repeatCount
       ),
       8000
     );

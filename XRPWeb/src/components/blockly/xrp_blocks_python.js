@@ -1921,6 +1921,24 @@ function setupVoiceCommandGenerator() {
 }
 
 
+function setupCustomVoiceEmotionRuntime(
+  command
+) {
+  if (
+    typeof command === "string" &&
+    /^custom:\d+$/.test(command)
+  ) {
+    /*
+     * Only dynamic custom commands need the emotion runtime
+     * to resolve emotionId and publish it to Red Vision.
+     * Official voice workspaces keep their generated setup
+     * exactly as before.
+     */
+    setupEmotionGenerator();
+  }
+}
+
+
 pythonGenerator.forBlock[
   "xrp_voice_update"
 ] = function () {
@@ -1941,6 +1959,10 @@ pythonGenerator.forBlock[
     block.getFieldValue(
       "COMMAND"
     );
+
+  setupCustomVoiceEmotionRuntime(
+    command
+  );
 
   let branch =
     pythonGenerator.statementToCode(
@@ -1970,6 +1992,10 @@ pythonGenerator.forBlock[
     block.getFieldValue(
       "COMMAND"
     );
+
+  setupCustomVoiceEmotionRuntime(
+    command
+  );
 
   return [
     `voiceCommand == "${command}"`,

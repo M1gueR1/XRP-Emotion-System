@@ -1,4 +1,4 @@
-export type VoiceCommandAction =
+export type OfficialVoiceCommandAction =
   | "turn_right"
   | "turn_left"
   | "turn_back"
@@ -15,6 +15,15 @@ export type VoiceCommandAction =
   | "unknown";
 
 
+export type CustomVoiceCommandKey =
+  `custom:${number}`;
+
+
+export type VoiceCommandAction =
+  | OfficialVoiceCommandAction
+  | CustomVoiceCommandKey;
+
+
 export type VoiceIntentCategory =
   | "emotion"
   | "movement"
@@ -27,7 +36,23 @@ export type VoiceIntentSource =
   | "intent_engine"
   | "event_sentiment"
   | "advanced_reasoner"
-  | "semantic_ml";
+  | "semantic_ml"
+  | "custom_voice_keyword";
+
+
+export type CustomVoiceCommandMetadata = {
+  commandId: number;
+  commandKey: CustomVoiceCommandKey;
+  phrase: string;
+  automaticallyPlayEmotion: boolean;
+  targetEmotionId: number;
+  targetEmotionUniqueName: string;
+  targetEmotionDisplayName: string;
+  targetEmotionSource:
+    | "official"
+    | "custom";
+  targetMissing: boolean;
+};
 
 
 export type VoiceDecisionCandidate = {
@@ -91,4 +116,7 @@ export interface VoiceCommandResult {
    */
   decisionCandidates?: VoiceDecisionCandidate[];
   decisionReason?: string;
+
+  /* Present only for student-created voice keywords. */
+  customCommand?: CustomVoiceCommandMetadata;
 }
