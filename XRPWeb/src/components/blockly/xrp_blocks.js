@@ -1551,6 +1551,483 @@ Blockly.Blocks[
   },
 };
 
+
+// ---------------------------------------------------------
+// Composable emotion definition blocks
+// ---------------------------------------------------------
+
+const EMOTION_DEFINITION_PROPERTY_TYPE =
+  "EmotionDefinitionProperty";
+
+const EMOTION_DEFINITION_PROPERTY_BLOCKS =
+  new Set([
+    "xrp_emotion_property_animation_speed",
+    "xrp_emotion_property_minimum_switch_time",
+    "xrp_emotion_property_animation_frames",
+    "xrp_emotion_property_animation_repeat",
+    "xrp_emotion_property_preload_red_vision",
+    "xrp_emotion_property_control_permissions",
+  ]);
+
+
+function configureEmotionPropertyConnections(
+  block
+) {
+  block.setPreviousStatement(
+    true,
+    EMOTION_DEFINITION_PROPERTY_TYPE
+  );
+
+  block.setNextStatement(
+    true,
+    EMOTION_DEFINITION_PROPERTY_TYPE
+  );
+
+  block.setColour("#00a6a6");
+  block.setHelpUrl("");
+}
+
+
+function enforceEmotionPropertyBlocks(
+  block
+) {
+  let currentBlock =
+    block.getInputTargetBlock(
+      "PROPERTIES"
+    );
+
+  while (currentBlock) {
+    if (
+      !EMOTION_DEFINITION_PROPERTY_BLOCKS
+        .has(currentBlock.type)
+    ) {
+      currentBlock.setWarningText(
+        "Only emotion setting blocks can " +
+          "be placed inside this block."
+      );
+
+      /*
+       * Most regular Blockly statement blocks use an
+       * unrestricted connection. Blockly treats that as a
+       * wildcard, so the typed statement input alone cannot
+       * reject every unrelated block. Unplugging it here
+       * keeps this container exclusive to emotion settings.
+       */
+      currentBlock.unplug(true);
+      return;
+    }
+
+    currentBlock.setWarningText(null);
+    currentBlock =
+      currentBlock.getNextBlock();
+  }
+}
+
+
+function updateComposableEmotionFramesBlock(
+  block
+) {
+  const customFrames =
+    block.getFieldValue(
+      "FRAME_MODE"
+    ) === "CUSTOM";
+
+  block
+    .getInput("FRAME_SEQUENCE_INPUT")
+    ?.setVisible(customFrames);
+
+  if (block.rendered) {
+    block.render();
+  }
+}
+
+
+function updateComposableEmotionRepeatBlock(
+  block
+) {
+  const usingRepeatCount =
+    block.getFieldValue(
+      "REPEAT_MODE"
+    ) === "count";
+
+  block
+    .getInput("REPEAT_COUNT_INPUT")
+    ?.setVisible(usingRepeatCount);
+
+  if (block.rendered) {
+    block.render();
+  }
+}
+
+
+Blockly.Blocks[
+  "xrp_emotion_define_composable"
+] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField(
+        "Define emotion with blocks"
+      )
+      .appendField(
+        new Blockly.FieldDropdown(
+          getConfigurableEmotionDropdownOptions
+        ),
+        "EMOTION"
+      );
+
+    this.appendStatementInput(
+      "PROPERTIES"
+    )
+      .setCheck(
+        EMOTION_DEFINITION_PROPERTY_TYPE
+      )
+      .appendField(
+        "emotion settings"
+      );
+
+    this.setPreviousStatement(
+      true,
+      null
+    );
+
+    this.setNextStatement(
+      true,
+      null
+    );
+
+    this.setColour("#00a6a6");
+
+    this.setTooltip(
+      "Define an emotion by adding only the " +
+        "settings you want to customize. " +
+        "Missing settings use safe defaults."
+    );
+
+    this.setHelpUrl("");
+
+    this.setOnChange(function (event) {
+      if (
+        !this.workspace ||
+        this.isInFlyout ||
+        !event
+      ) {
+        return;
+      }
+
+      const shouldValidate =
+        event.type ===
+          Blockly.Events.BLOCK_MOVE ||
+        event.type ===
+          Blockly.Events.FINISHED_LOADING;
+
+      if (shouldValidate) {
+        enforceEmotionPropertyBlocks(
+          this
+        );
+      }
+    });
+  },
+};
+
+
+Blockly.Blocks[
+  "xrp_emotion_property_animation_speed"
+] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("animation speed")
+      .appendField(
+        new Blockly.FieldNumber(
+          4,
+          1,
+          60,
+          1
+        ),
+        "FPS"
+      )
+      .appendField("FPS");
+
+    configureEmotionPropertyConnections(
+      this
+    );
+
+    this.setTooltip(
+      "Choose the animation playback speed."
+    );
+  },
+};
+
+
+Blockly.Blocks[
+  "xrp_emotion_property_minimum_switch_time"
+] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField(
+        "minimum time before switching"
+      )
+      .appendField(
+        new Blockly.FieldNumber(
+          DEFAULT_MIN_SWITCH_TIME_MS,
+          0,
+          60000,
+          50
+        ),
+        "MIN_TIME"
+      )
+      .appendField("ms");
+
+    configureEmotionPropertyConnections(
+      this
+    );
+
+    this.setTooltip(
+      "Choose how long the emotion must remain " +
+        "active before it can switch."
+    );
+  },
+};
+
+
+Blockly.Blocks[
+  "xrp_emotion_property_animation_frames"
+] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("animation frames")
+      .appendField(
+        new Blockly.FieldDropdown([
+          [
+            "Play all frames",
+            "ALL",
+          ],
+          [
+            "Choose frame order",
+            "CUSTOM",
+          ],
+        ]),
+        "FRAME_MODE"
+      );
+
+    this.appendDummyInput(
+      "FRAME_SEQUENCE_INPUT"
+    )
+      .appendField("frame order")
+      .appendField(
+        new Blockly.FieldTextInput(
+          "1,2,3,2",
+          validateEmotionFrameSubset
+        ),
+        "FRAME_SUBSET"
+      );
+
+    configureEmotionPropertyConnections(
+      this
+    );
+
+    this.setTooltip(
+      "Play every frame or choose a custom " +
+        "frame order."
+    );
+
+    this.setOnChange(function (event) {
+      if (
+        !this.workspace ||
+        this.isInFlyout ||
+        !event
+      ) {
+        return;
+      }
+
+      const relevantChange =
+        event.type ===
+          Blockly.Events.BLOCK_CHANGE &&
+        event.blockId === this.id &&
+        event.element === "field" &&
+        event.name === "FRAME_MODE";
+
+      if (
+        relevantChange ||
+        event.type ===
+          Blockly.Events.FINISHED_LOADING
+      ) {
+        updateComposableEmotionFramesBlock(
+          this
+        );
+      }
+    });
+
+    window.setTimeout(
+      () => {
+        updateComposableEmotionFramesBlock(
+          this
+        );
+      },
+      0
+    );
+  },
+};
+
+
+Blockly.Blocks[
+  "xrp_emotion_property_animation_repeat"
+] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("animation repeat")
+      .appendField(
+        new Blockly.FieldDropdown([
+          [
+            "Play once",
+            "once",
+          ],
+          [
+            "Loop continuously",
+            "loop",
+          ],
+          [
+            "Repeat a number of times",
+            "count",
+          ],
+          [
+            "Forward and backward",
+            "ping_pong",
+          ],
+        ]),
+        "REPEAT_MODE"
+      );
+
+    this.appendDummyInput(
+      "REPEAT_COUNT_INPUT"
+    )
+      .appendField("repeat")
+      .appendField(
+        new Blockly.FieldNumber(
+          3,
+          1,
+          100,
+          1
+        ),
+        "REPEAT_COUNT"
+      )
+      .appendField("times");
+
+    configureEmotionPropertyConnections(
+      this
+    );
+
+    this.setTooltip(
+      "Choose how the emotion animation repeats."
+    );
+
+    this.setOnChange(function (event) {
+      if (
+        !this.workspace ||
+        this.isInFlyout ||
+        !event
+      ) {
+        return;
+      }
+
+      const relevantChange =
+        event.type ===
+          Blockly.Events.BLOCK_CHANGE &&
+        event.blockId === this.id &&
+        event.element === "field" &&
+        event.name === "REPEAT_MODE";
+
+      if (
+        relevantChange ||
+        event.type ===
+          Blockly.Events.FINISHED_LOADING
+      ) {
+        updateComposableEmotionRepeatBlock(
+          this
+        );
+      }
+    });
+
+    window.setTimeout(
+      () => {
+        updateComposableEmotionRepeatBlock(
+          this
+        );
+      },
+      0
+    );
+  },
+};
+
+
+Blockly.Blocks[
+  "xrp_emotion_property_preload_red_vision"
+] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField(
+        "preload on Red Vision"
+      )
+      .appendField(
+        new Blockly.FieldDropdown([
+          ["No", "FALSE"],
+          ["Yes", "TRUE"],
+        ]),
+        "PRELOAD_RED_VISION"
+      );
+
+    configureEmotionPropertyConnections(
+      this
+    );
+
+    this.setTooltip(
+      "Choose whether Red Vision loads this " +
+        "emotion into its cache at startup."
+    );
+  },
+};
+
+
+Blockly.Blocks[
+  "xrp_emotion_property_control_permissions"
+] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField(
+        "allow emotion to control"
+      )
+      .appendField("dashboard")
+      .appendField(
+        new Blockly.FieldCheckbox(
+          "TRUE"
+        ),
+        "OVERRIDE_DASHBOARD"
+      )
+      .appendField("drivetrain")
+      .appendField(
+        new Blockly.FieldCheckbox(
+          "TRUE"
+        ),
+        "OVERRIDE_DRIVETRAIN"
+      )
+      .appendField("LED")
+      .appendField(
+        new Blockly.FieldCheckbox(
+          "FALSE"
+        ),
+        "OVERRIDE_LED"
+      );
+
+    configureEmotionPropertyConnections(
+      this
+    );
+
+    this.setTooltip(
+      "Choose which robot outputs this emotion " +
+        "is allowed to control."
+    );
+  },
+};
+
 // ---------------------------------------------------------
 // Emotion motion blocks
 // ---------------------------------------------------------
@@ -1662,6 +2139,67 @@ Blockly.Blocks[
     this.setTooltip(
       "One timed drivetrain command. " +
       "Forward and turn range from -1 to 1."
+    );
+
+    this.setHelpUrl("");
+  },
+};
+
+Blockly.Blocks[
+  "xrp_emotion_shake_motion"
+] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("Shake motion")
+      .appendField(
+        new Blockly.FieldNumber(
+          80,
+          10,
+          1000,
+          10
+        ),
+        "DURATION"
+      )
+      .appendField("ms each");
+
+    this.appendDummyInput()
+      .appendField("forward")
+      .appendField(
+        new Blockly.FieldNumber(
+          0.0,
+          -1,
+          1,
+          0.05
+        ),
+        "STRAIGHT"
+      )
+      .appendField("turn strength")
+      .appendField(
+        new Blockly.FieldNumber(
+          0.35,
+          0,
+          1,
+          0.05
+        ),
+        "TURN_STRENGTH"
+      );
+
+    this.setPreviousStatement(
+      true,
+      "EmotionMotionStep"
+    );
+
+    this.setNextStatement(
+      true,
+      "EmotionMotionStep"
+    );
+
+    this.setColour("#00a6a6");
+
+    this.setTooltip(
+      "Builds one left-right trembling motion. " +
+        "Use repeat on the emotion motion block " +
+        "to keep shaking."
     );
 
     this.setHelpUrl("");

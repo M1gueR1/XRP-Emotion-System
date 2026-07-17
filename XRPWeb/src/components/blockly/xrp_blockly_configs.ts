@@ -288,6 +288,41 @@ const ToolboxJson = {
                 {
                 "kind": "BLOCK",
                 "type":
+                    "xrp_emotion_define_composable"
+                },
+                {
+                "kind": "BLOCK",
+                "type":
+                    "xrp_emotion_property_animation_speed"
+                },
+                {
+                "kind": "BLOCK",
+                "type":
+                    "xrp_emotion_property_minimum_switch_time"
+                },
+                {
+                "kind": "BLOCK",
+                "type":
+                    "xrp_emotion_property_animation_frames"
+                },
+                {
+                "kind": "BLOCK",
+                "type":
+                    "xrp_emotion_property_animation_repeat"
+                },
+                {
+                "kind": "BLOCK",
+                "type":
+                    "xrp_emotion_property_preload_red_vision"
+                },
+                {
+                "kind": "BLOCK",
+                "type":
+                    "xrp_emotion_property_control_permissions"
+                },
+                {
+                "kind": "BLOCK",
+                "type":
                     "xrp_emotion_configure_hardware"
                 },
                 {
@@ -297,6 +332,10 @@ const ToolboxJson = {
                 {
                 "kind": "BLOCK",
                 "type": "xrp_emotion_motion_step"
+                },
+                {
+                "kind": "BLOCK",
+                "type": "xrp_emotion_shake_motion"
                 },
                 {
                 "kind": "BLOCK",

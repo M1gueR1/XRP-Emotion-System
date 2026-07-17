@@ -12,6 +12,68 @@ import {
 const MAX_RED_VISION_PRELOADS = 4;
 
 
+function getComposableEmotionPropertyBlocks(
+  definitionBlock
+) {
+  const propertyBlocks = [];
+
+  let currentBlock =
+    definitionBlock
+      .getInputTargetBlock(
+        "PROPERTIES"
+      );
+
+  while (currentBlock) {
+    propertyBlocks.push(
+      currentBlock
+    );
+
+    currentBlock =
+      currentBlock.getNextBlock();
+  }
+
+  return propertyBlocks;
+}
+
+
+function shouldPreloadEmotionDefinition(
+  definitionBlock
+) {
+  if (
+    definitionBlock.type ===
+    "xrp_emotion_define"
+  ) {
+    return (
+      definitionBlock.getFieldValue(
+        "PRELOAD_RED_VISION"
+      ) === "TRUE"
+    );
+  }
+
+  if (
+    definitionBlock.type !==
+    "xrp_emotion_define_composable"
+  ) {
+    return false;
+  }
+
+  const preloadBlock =
+    getComposableEmotionPropertyBlocks(
+      definitionBlock
+    ).find(
+      (propertyBlock) =>
+        propertyBlock.type ===
+        "xrp_emotion_property_preload_red_vision"
+    );
+
+  return (
+    preloadBlock?.getFieldValue(
+      "PRELOAD_RED_VISION"
+    ) === "TRUE"
+  );
+}
+
+
 function getRedVisionPreloadNames(
   workspace
 ) {
@@ -34,15 +96,17 @@ function getRedVisionPreloadNames(
   for (const currentBlock of blocks) {
     if (
       currentBlock.type !==
-      "xrp_emotion_define"
+        "xrp_emotion_define" &&
+      currentBlock.type !==
+        "xrp_emotion_define_composable"
     ) {
       continue;
     }
 
     const shouldPreload =
-      currentBlock.getFieldValue(
-        "PRELOAD_RED_VISION"
-      ) === "TRUE";
+      shouldPreloadEmotionDefinition(
+        currentBlock
+      );
 
     if (!shouldPreload) {
       continue;
@@ -957,6 +1021,98 @@ function emotionFlagTuple(block) {
 }
 
 
+function normalizeEmotionFrameSubset(
+  emotionId,
+  frameSubset
+) {
+  /*
+   * Red Vision custom uploads are intentionally
+   * stored as one static 192x192 frame on the XRP.
+   * However, official emotions such as happy and sad
+   * must continue to use their full built-in sheets.
+   *
+   * This guard prevents an accidentally persisted
+   * one-frame Blockly subset from making official
+   * Red Vision animations look static.
+   */
+  const isOfficialEmotion =
+    emotionId < 128;
+
+  if (
+    isOfficialEmotion &&
+    frameSubset === "(0,)"
+  ) {
+    return "None";
+  }
+
+  return frameSubset;
+}
+
+
+function createEmotionDefinitionCode({
+  emotionName,
+  emotionId,
+  playbackFps,
+  frameSubset,
+  minimumSwitchTime,
+  repeatMode,
+  repeatCount,
+  flagOverrides,
+}) {
+  const normalizedFrameSubset =
+    normalizeEmotionFrameSubset(
+      emotionId,
+      frameSubset
+    );
+
+  return [
+    "emotion.register_definition(",
+    "    EmotionDefinition(",
+    `        name="${emotionName}",`,
+    `        emotion_id=${emotionId},`,
+
+    "        playback_fps=" +
+      (
+        playbackFps === null
+          ? "None"
+          : playbackFps
+      ) +
+      ",",
+
+    `        frame_subset=${normalizedFrameSubset},`,
+
+    "        min_time_before_switch_ms=" +
+      (
+        minimumSwitchTime === null
+          ? "None"
+          : minimumSwitchTime
+      ) +
+      ",",
+
+    "        repeat_mode=" +
+      (
+        repeatMode === null
+          ? "None"
+          : `"${repeatMode}"`
+      ) +
+      ",",
+
+    "        repeat_count=" +
+      (
+        repeatCount === null
+          ? "None"
+          : repeatCount
+      ) +
+      ",",
+
+    `        flag_overrides=${flagOverrides},`,
+
+    "    )",
+    ")",
+  ].join("\n");
+}
+
+
 // ---------------------------------------------------------
 // Define emotion generator
 // ---------------------------------------------------------
@@ -1013,7 +1169,7 @@ pythonGenerator.forBlock[
         )
       : null;
 
-  let frameSubset =
+  const frameSubset =
     emotionFrameTuple(
       block.getFieldValue(
         "FRAME_MODE"
@@ -1022,26 +1178,6 @@ pythonGenerator.forBlock[
         "FRAME_SUBSET"
       )
     );
-
-  /*
-   * Red Vision custom uploads are intentionally
-   * stored as one static 192x192 frame on the XRP.
-   * However, official emotions such as happy and sad
-   * must continue to use their full built-in sheets.
-   *
-   * This guard prevents an accidentally persisted
-   * one-frame Blockly subset from making official
-   * Red Vision animations look static.
-   */
-  const isOfficialEmotion =
-    emotionId < 128;
-
-  if (
-    isOfficialEmotion &&
-    frameSubset === "(0,)"
-  ) {
-    frameSubset = "None";
-  }
 
   const rawRepeatMode =
     block.getFieldValue(
@@ -1065,51 +1201,17 @@ pythonGenerator.forBlock[
   const flagOverrides =
     emotionFlagTuple(block);
 
-  const definitionCode = [
-    "emotion.register_definition(",
-    "    EmotionDefinition(",
-    `        name="${emotionName}",`,
-    `        emotion_id=${emotionId},`,
-
-    "        playback_fps=" +
-      (
-        playbackFps === null
-          ? "None"
-          : playbackFps
-      ) +
-      ",",
-
-    `        frame_subset=${frameSubset},`,
-
-    "        min_time_before_switch_ms=" +
-      (
-        minimumSwitchTime === null
-          ? "None"
-          : minimumSwitchTime
-      ) +
-      ",",
-
-    "        repeat_mode=" +
-      (
-        repeatMode === null
-          ? "None"
-          : `"${repeatMode}"`
-      ) +
-      ",",
-
-    "        repeat_count=" +
-      (
-        repeatCount === null
-          ? "None"
-          : repeatCount
-      ) +
-      ",",
-
-    `        flag_overrides=${flagOverrides},`,
-
-    "    )",
-    ")",
-  ].join("\n");
+  const definitionCode =
+    createEmotionDefinitionCode({
+      emotionName,
+      emotionId,
+      playbackFps,
+      frameSubset,
+      minimumSwitchTime,
+      repeatMode,
+      repeatCount,
+      flagOverrides,
+    });
 
   /*
    * Store the definition at the beginning of the
@@ -1129,6 +1231,170 @@ pythonGenerator.forBlock[
   // Nothing is generated at the block's visual position.
   return "";
 };
+
+
+function getComposableEmotionConfiguration(
+  block
+) {
+  const configuration = {
+    playbackFps: null,
+    frameSubset: "None",
+    minimumSwitchTime: null,
+    repeatMode: null,
+    repeatCount: null,
+
+    /*
+     * The composable block is designed for motion-aware
+     * classroom projects. When students omit the permission
+     * setting, dashboard and drivetrain remain available.
+     */
+    flagOverrides:
+      '("dashboard_screen", "drivetrain")',
+  };
+
+  const propertyBlocks =
+    getComposableEmotionPropertyBlocks(
+      block
+    );
+
+  for (const propertyBlock of propertyBlocks) {
+    switch (propertyBlock.type) {
+      case "xrp_emotion_property_animation_speed":
+        configuration.playbackFps =
+          Number(
+            propertyBlock.getFieldValue(
+              "FPS"
+            )
+          );
+        break;
+
+      case "xrp_emotion_property_minimum_switch_time":
+        configuration.minimumSwitchTime =
+          Number(
+            propertyBlock.getFieldValue(
+              "MIN_TIME"
+            )
+          );
+        break;
+
+      case "xrp_emotion_property_animation_frames":
+        configuration.frameSubset =
+          emotionFrameTuple(
+            propertyBlock.getFieldValue(
+              "FRAME_MODE"
+            ),
+            propertyBlock.getFieldValue(
+              "FRAME_SUBSET"
+            )
+          );
+        break;
+
+      case "xrp_emotion_property_animation_repeat": {
+        const repeatMode =
+          propertyBlock.getFieldValue(
+            "REPEAT_MODE"
+          );
+
+        configuration.repeatMode =
+          repeatMode;
+
+        configuration.repeatCount =
+          repeatMode === "count"
+            ? Number(
+                propertyBlock.getFieldValue(
+                  "REPEAT_COUNT"
+                )
+              )
+            : null;
+        break;
+      }
+
+      case "xrp_emotion_property_control_permissions":
+        configuration.flagOverrides =
+          emotionFlagTuple(
+            propertyBlock
+          );
+        break;
+
+      default:
+        break;
+    }
+  }
+
+  return configuration;
+}
+
+
+pythonGenerator.forBlock[
+  "xrp_emotion_define_composable"
+] = function (block) {
+  setupEmotionGenerator();
+
+  const emotionName =
+    block.getFieldValue(
+      "EMOTION"
+    );
+
+  const catalogEntry =
+    getEmotionEntryByName(
+      emotionName
+    );
+
+  if (!catalogEntry) {
+    throw new Error(
+      `Unknown emotion: ${emotionName}`
+    );
+  }
+
+  const configuration =
+    getComposableEmotionConfiguration(
+      block
+    );
+
+  const definitionCode =
+    createEmotionDefinitionCode({
+      emotionName,
+      emotionId:
+        catalogEntry.emotionId,
+      ...configuration,
+    });
+
+  pythonGenerator.definitions_[
+    `emotion_definition_${emotionName}`
+  ] = definitionCode;
+
+  updateRedVisionPreloadDefinition(
+    block.workspace
+  );
+
+  return "";
+};
+
+
+const composableEmotionPropertyTypes = [
+  "xrp_emotion_property_animation_speed",
+  "xrp_emotion_property_minimum_switch_time",
+  "xrp_emotion_property_animation_frames",
+  "xrp_emotion_property_animation_repeat",
+  "xrp_emotion_property_preload_red_vision",
+  "xrp_emotion_property_control_permissions",
+];
+
+for (
+  const propertyType of
+  composableEmotionPropertyTypes
+) {
+  pythonGenerator.forBlock[
+    propertyType
+  ] = function () {
+    /*
+     * Property blocks are consumed by their parent Define
+     * emotion with blocks container. They do not represent
+     * executable Python statements on their own.
+     */
+    return "";
+  };
+}
 
 
 pythonGenerator.forBlock['xrp_emotion_set'] = function (block) {
@@ -1411,6 +1677,54 @@ pythonGenerator.forBlock[
   return (
     `(${duration}, ` +
     `${straight}, ${turn}),\n`
+  );
+};
+
+pythonGenerator.forBlock[
+  "xrp_emotion_shake_motion"
+] = function (block) {
+  const duration =
+    Math.max(
+      10,
+      Math.round(
+        Number(
+          block.getFieldValue(
+            "DURATION"
+          )
+        )
+      )
+    );
+
+  const straight =
+    emotionPythonNumber(
+      block.getFieldValue(
+        "STRAIGHT"
+      )
+    );
+
+  const turnStrength =
+    Math.abs(
+      Number(
+        block.getFieldValue(
+          "TURN_STRENGTH"
+        )
+      )
+    );
+
+  const turn =
+    emotionPythonNumber(
+      Math.min(
+        1,
+        turnStrength
+      )
+    );
+
+  const oppositeTurn =
+    turn === "0" ? turn : `-${turn}`;
+
+  return (
+    `(${duration}, ${straight}, ${turn}),\n` +
+    `(${duration}, ${straight}, ${oppositeTurn}),\n`
   );
 };
 
